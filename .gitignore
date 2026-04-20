@@ -2,3 +2,6 @@ isaacgym*
 .ipynb_checkpoints/
 .vscode/
 *img
+
+.DS_Store
+private
