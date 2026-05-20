@@ -198,6 +198,35 @@ class LeggedRobotCfg(BaseConfig):
 
         num_goals = 8
 
+    class dynamic_obstacles:
+        enable = False
+        type = "moving_hurdle"
+
+        # Common dynamic obstacle settings. These are intentionally disabled by
+        # default so the original static parkour baseline is unchanged.
+        num_obstacles_per_env = 1
+        debug_draw = False
+        randomize_on_reset = True
+
+        # Moving hurdle MVP. The box length is along x, thickness along y, and
+        # height along z.
+        hurdle_length = 1.0
+        hurdle_thickness = 0.08
+        hurdle_height = 0.35
+        hurdle_asset_density = 1000.0
+
+        base_position_x = 2.0
+        base_position_y = 0.0
+        base_position_z = 0.35
+
+        motion_axis = "y"
+        amplitude_range = [0.1, 0.4]
+        frequency_range = [0.1, 0.5]
+        phase_range = [0.0, 6.28318530718]
+
+        make_kinematic = True
+        collision_enabled = True
+
     class commands:
         curriculum = False
         max_curriculum = 1.

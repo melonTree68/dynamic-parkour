@@ -1,7 +1,32 @@
 isaacgym*
 .ipynb_checkpoints/
 .vscode/
+.venv-parkour/
 *img
 
 .DS_Store
 private
+
+# Local agent / Codex state
+.agents/
+.codex/
+
+# Local Python environments
+.venv-parkour/
+.venv-parkour38/
+
+# Python cache / build metadata
+__pycache__/
+**/__pycache__/
+*.py[cod]
+*.egg-info/
+**/*.egg-info/
+
+# Runtime logs and experiment outputs
+logs/
+legged_gym/logs/
+wandb/
+legged_gym/wandb/
+
+# Local editor settings
+.vscode/
