@@ -2,3 +2,5 @@ isaacgym*
 .ipynb_checkpoints/
 .vscode/
 *img
+
+/scripts/
