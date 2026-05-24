@@ -9,12 +9,16 @@ from torch.nn.modules import rnn
 from torch.nn.modules.activation import ReLU
 from torch.nn.utils.parametrizations import spectral_norm
 
+
 class Estimator(nn.Module):
-    def __init__(self,  input_dim,
-                        output_dim,
-                        hidden_dims=[256, 128, 64],
-                        activation="elu",
-                        **kwargs):
+    def __init__(
+        self,
+        input_dim,
+        output_dim,
+        hidden_dims=[256, 128, 64],
+        activation="elu",
+        **kwargs
+    ):
         super(Estimator, self).__init__()
 
         self.input_dim = input_dim
@@ -31,19 +35,19 @@ class Estimator(nn.Module):
                 estimator_layers.append(activation)
         # estimator_layers.append(nn.Tanh())
         self.estimator = nn.Sequential(*estimator_layers)
-    
+
     def forward(self, input):
         return self.estimator(input)
-    
+
     def inference(self, input):
         with torch.no_grad():
             return self.estimator(input)
 
+
 class Discriminator(nn.Module):
-    def __init__(self, n_states, 
-                 n_skills, 
-                 hidden_dims=[256, 128, 64], 
-                 activation="elu"):
+    def __init__(
+        self, n_states, n_skills, hidden_dims=[256, 128, 64], activation="elu"
+    ):
         super(Discriminator, self).__init__()
         self.n_states = n_states
         self.n_skills = n_skills
@@ -56,7 +60,9 @@ class Discriminator(nn.Module):
             if l == len(hidden_dims) - 1:
                 discriminator_layers.append(nn.Linear(hidden_dims[l], n_skills))
             else:
-                discriminator_layers.append(nn.Linear(hidden_dims[l], hidden_dims[l + 1]))
+                discriminator_layers.append(
+                    nn.Linear(hidden_dims[l], hidden_dims[l + 1])
+                )
                 discriminator_layers.append(activation)
         self.discriminator = nn.Sequential(*discriminator_layers)
         # self.hidden1 = nn.Linear(in_features=self.n_states, out_features=self.n_hidden_filters)
@@ -76,11 +82,11 @@ class Discriminator(nn.Module):
         with torch.no_grad():
             return self.discriminator(states)
 
+
 class DiscriminatorLSD(nn.Module):
-    def __init__(self, n_states, 
-                 n_skills, 
-                 hidden_dims=[256, 128, 64], 
-                 activation="elu"):
+    def __init__(
+        self, n_states, n_skills, hidden_dims=[256, 128, 64], activation="elu"
+    ):
         super(DiscriminatorLSD, self).__init__()
         self.n_states = n_states
         self.n_skills = n_skills
@@ -91,12 +97,15 @@ class DiscriminatorLSD(nn.Module):
         discriminator_layers.append(activation)
         for l in range(len(hidden_dims)):
             if l == len(hidden_dims) - 1:
-                discriminator_layers.append(spectral_norm(nn.Linear(hidden_dims[l], n_skills)))
+                discriminator_layers.append(
+                    spectral_norm(nn.Linear(hidden_dims[l], n_skills))
+                )
             else:
-                discriminator_layers.append(spectral_norm(nn.Linear(hidden_dims[l], hidden_dims[l + 1])))
+                discriminator_layers.append(
+                    spectral_norm(nn.Linear(hidden_dims[l], hidden_dims[l + 1]))
+                )
                 discriminator_layers.append(activation)
         self.discriminator = nn.Sequential(*discriminator_layers)
-        
 
     def forward(self, states):
         return self.discriminator(states)
@@ -104,12 +113,12 @@ class DiscriminatorLSD(nn.Module):
     def inference(self, states):
         with torch.no_grad():
             return self.discriminator(states)
-        
+
+
 class DiscriminatorContDIAYN(nn.Module):
-    def __init__(self, n_states, 
-                 n_skills, 
-                 hidden_dims=[256, 128, 64], 
-                 activation="elu"):
+    def __init__(
+        self, n_states, n_skills, hidden_dims=[256, 128, 64], activation="elu"
+    ):
         super(DiscriminatorContDIAYN, self).__init__()
         self.n_states = n_states
         self.n_skills = n_skills
@@ -122,7 +131,9 @@ class DiscriminatorContDIAYN(nn.Module):
             if l == len(hidden_dims) - 1:
                 discriminator_layers.append(nn.Linear(hidden_dims[l], n_skills))
             else:
-                discriminator_layers.append(nn.Linear(hidden_dims[l], hidden_dims[l + 1]))
+                discriminator_layers.append(
+                    nn.Linear(hidden_dims[l], hidden_dims[l + 1])
+                )
                 discriminator_layers.append(activation)
         self.discriminator = nn.Sequential(*discriminator_layers)
 
