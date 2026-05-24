@@ -258,15 +258,17 @@ class OnPolicyRunner:
             learn_time = stop - start
             if self.log_dir is not None:
                 self.log(locals())
-            if it < 2500:
-                if it % self.save_interval == 0:
-                    self.save(os.path.join(self.log_dir, "model_{}.pt".format(it)))
-            elif it < 5000:
-                if it % (2 * self.save_interval) == 0:
-                    self.save(os.path.join(self.log_dir, "model_{}.pt".format(it)))
-            else:
-                if it % (5 * self.save_interval) == 0:
-                    self.save(os.path.join(self.log_dir, "model_{}.pt".format(it)))
+            # if it < 2500:
+            #     if it % self.save_interval == 0:
+            #         self.save(os.path.join(self.log_dir, "model_{}.pt".format(it)))
+            # elif it < 5000:
+            #     if it % (2 * self.save_interval) == 0:
+            #         self.save(os.path.join(self.log_dir, "model_{}.pt".format(it)))
+            # else:
+            #     if it % (5 * self.save_interval) == 0:
+            #         self.save(os.path.join(self.log_dir, "model_{}.pt".format(it)))
+            if it % self.save_interval == 0 or it == tot_iter - 1:
+                self.save(os.path.join(self.log_dir, "model_{}.pt".format(it)))
             ep_infos.clear()
 
         # self.current_learning_iteration += num_learning_iterations

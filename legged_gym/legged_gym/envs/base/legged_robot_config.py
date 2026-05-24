@@ -444,7 +444,7 @@ class LeggedRobotCfgPPO(BaseConfig):
         max_iterations = 50000  # number of policy updates
 
         # logging
-        save_interval = 100  # check for potential saves every this many iterations
+        save_interval = 500  # check for potential saves every this many iterations
         experiment_name = "rough_a1"
         run_name = ""
         # load and resume
