@@ -37,7 +37,9 @@ def load_suite_registry():
 def check_dynamic_obstacle_manager():
     source = read("legged_gym/legged_gym/utils/dynamic_obstacles.py")
     for obstacle_type in OBSTACLE_TYPES:
-        require(obstacle_type in source, "{} missing from manager".format(obstacle_type))
+        require(
+            obstacle_type in source, "{} missing from manager".format(obstacle_type)
+        )
 
     for helper in [
         "_update_moving_hurdle",
@@ -53,9 +55,15 @@ def check_dynamic_obstacle_manager():
     require("use_suites" in source, "suite mode missing from manager")
     require("layout_ids" in source, "manager should store per-env layout ids")
     require("actor_type_names" in source, "manager should store actor types")
-    require("raise ValueError" in source, "manager should reject unknown obstacle types")
-    require("set_actor_root_state_tensor_indexed" in source, "actor root updates missing")
-    require("heightfield" in source, "static mesh/heightfield intent should be documented")
+    require(
+        "raise ValueError" in source, "manager should reject unknown obstacle types"
+    )
+    require(
+        "set_actor_root_state_tensor_indexed" in source, "actor root updates missing"
+    )
+    require(
+        "heightfield" in source, "static mesh/heightfield intent should be documented"
+    )
 
 
 def check_suite_registry():
@@ -163,7 +171,13 @@ def check_docs():
                 obstacle_type in source,
                 "{} missing from {}".format(obstacle_type, relative_path),
             )
-        for suite_name in ["pure_hurdle", "pure_step", "pure_gap", "pure_ramp", "mixed"]:
+        for suite_name in [
+            "pure_hurdle",
+            "pure_step",
+            "pure_gap",
+            "pure_ramp",
+            "mixed",
+        ]:
             require(
                 suite_name in source,
                 "{} missing from {}".format(suite_name, relative_path),

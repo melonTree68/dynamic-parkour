@@ -142,7 +142,9 @@ class DynamicObstacleManager:
         if not self.assets:
             raise RuntimeError("Dynamic obstacle assets must be created first")
         if env_id < 0 or env_id >= self.num_envs:
-            raise ValueError("env_id {} is outside [0, {})".format(env_id, self.num_envs))
+            raise ValueError(
+                "env_id {} is outside [0, {})".format(env_id, self.num_envs)
+            )
 
         layout_id, layout = self._select_layout_for_env(env_id)
         slots = self._expand_layout(layout)
@@ -303,7 +305,9 @@ class DynamicObstacleManager:
 
     def _compute_sinusoid(self, env_ids, t):
         elapsed = t - self.reset_times[env_ids]
-        angle = 2.0 * math.pi * self.frequencies[env_ids] * elapsed + self.phases[env_ids]
+        angle = (
+            2.0 * math.pi * self.frequencies[env_ids] * elapsed + self.phases[env_ids]
+        )
         offset = self.amplitudes[env_ids] * torch.sin(angle)
         velocity = (
             self.amplitudes[env_ids]
@@ -415,7 +419,9 @@ class DynamicObstacleManager:
             self._validate_range(obstacle["frequency_range"], "frequency_range")
             self._validate_range(obstacle["phase_range"], "phase_range")
             if obstacle["frequency_range"][0] < 0:
-                raise ValueError("dynamic obstacle frequency ranges must be non-negative")
+                raise ValueError(
+                    "dynamic obstacle frequency ranges must be non-negative"
+                )
             for value in obstacle["size"]:
                 if value <= 0:
                     raise ValueError("dynamic obstacle sizes must be positive")
@@ -440,7 +446,9 @@ class DynamicObstacleManager:
     def _require_actor_indices(self, env_ids=None):
         indices = self.actor_indices if env_ids is None else self.actor_indices[env_ids]
         if torch.any(indices < 0):
-            raise RuntimeError("dynamic obstacle actor indices are not fully initialized")
+            raise RuntimeError(
+                "dynamic obstacle actor indices are not fully initialized"
+            )
 
     def _possible_layouts(self):
         if self.use_suites:
@@ -720,7 +728,9 @@ class DynamicObstacleManager:
         return orientations, angular_velocities
 
     def _base_position(self, env_origin, local_position):
-        origin = env_origin.detach().cpu() if torch.is_tensor(env_origin) else env_origin
+        origin = (
+            env_origin.detach().cpu() if torch.is_tensor(env_origin) else env_origin
+        )
         return torch.tensor(
             [
                 float(origin[0]) + float(local_position[0]),
@@ -771,7 +781,9 @@ class DynamicObstacleManager:
 
         current_step_heights = torch.zeros_like(self.current_step_heights[env_ids])
         if torch.any(step_mask):
-            heights = self.current_positions[env_ids, :, 2] + 0.5 * self.step_heights[env_ids]
+            heights = (
+                self.current_positions[env_ids, :, 2] + 0.5 * self.step_heights[env_ids]
+            )
             current_step_heights[step_mask] = heights[step_mask]
         self.current_step_heights[env_ids] = current_step_heights
 

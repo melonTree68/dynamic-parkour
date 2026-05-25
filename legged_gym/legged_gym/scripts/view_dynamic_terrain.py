@@ -113,7 +113,9 @@ def list_suites():
             print("  {}: {}".format(layout_id, layout["name"]))
 
 
-def configure_tiny_dynamic_env(env_cfg, obstacle_type, suite, layout_id, random_layout, rows, cols):
+def configure_tiny_dynamic_env(
+    env_cfg, obstacle_type, suite, layout_id, random_layout, rows, cols
+):
     if suite is not None and suite not in SUPPORTED_SUITES:
         raise ValueError(
             "Unknown suite '{}'. Supported suites are {}.".format(
@@ -171,7 +173,9 @@ def summarize_state(state):
     if "current_position" in state:
         summary["current_position"] = state["current_position"].detach().cpu().tolist()
     if "current_ramp_angle" in state:
-        summary["current_ramp_angle"] = state["current_ramp_angle"].detach().cpu().tolist()
+        summary["current_ramp_angle"] = (
+            state["current_ramp_angle"].detach().cpu().tolist()
+        )
     return summary
 
 
@@ -206,7 +210,11 @@ def main():
         target = "suite '{}' layout_id {} random_layout={}".format(
             args.suite, args.layout_id, args.random_layout
         )
-    print("Viewing dynamic terrain {} for {} zero-action steps.".format(target, args.steps))
+    print(
+        "Viewing dynamic terrain {} for {} zero-action steps.".format(
+            target, args.steps
+        )
+    )
 
     for step_id in range(max(0, args.steps)):
         env.step(actions)
