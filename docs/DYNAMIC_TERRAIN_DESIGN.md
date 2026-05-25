@@ -12,7 +12,7 @@ Heightfields and triangle meshes are a good fit for static terrain generation. D
 
 The first dynamic-obstacle version therefore keeps the original terrain mesh static and adds Isaac Gym actors. The MVP obstacle set uses box actors for moving hurdles, shifting gap boundaries, changing-height steps, and a pitch-varying ramp approximation.
 
-## Dynamic Obstacle Types
+## Primitive Layer
 
 - `moving_hurdle`: a horizontally moving hurdle or box actor.
 - `shifting_gap`: two thin box actors representing moving takeoff/landing boundaries. They move together so the apparent gap location shifts without editing the static mesh.
@@ -21,9 +21,30 @@ The first dynamic-obstacle version therefore keeps the original terrain mesh sta
 
 Unknown types raise `ValueError`. Unsupported actor-count requests raise clear `NotImplementedError` instead of falling back silently.
 
+## Suite/Layout Layer
+
+The primitive layer is now organized into original Extreme Parkour style task groups through `DYNAMIC_TERRAIN_SUITES` in `legged_gym/legged_gym/utils/dynamic_terrain_suites.py`.
+
+Supported suites:
+
+- `pure_hurdle`: four single-skill hurdle layouts.
+- `pure_step`: four single-skill changing-step layouts.
+- `pure_gap`: four single-skill shifting-gap layouts.
+- `pure_ramp`: four single-skill pitch-varying ramp layouts.
+- `mixed`: three layouts combining hurdle/step, gap/ramp, and all four primitive families.
+
+`cfg.dynamic_obstacles.use_suites = False` by default, so existing primitive mode still uses `cfg.dynamic_obstacles.type`. When `use_suites = True`, the manager uses `suite`, `layout_id`, and `layout_randomization`. Layout randomization samples each environment layout at actor creation time; reset still resamples motion parameters, but does not swap actor assets.
+
+This mirrors the intended training organization:
+
+- Phase 1: train base policies separately on `pure_hurdle`, `pure_step`, `pure_gap`, and `pure_ramp`.
+- Phase 2: later distill or combine policies using `mixed` or other multi-suite settings.
+
+This stage only implements terrain/task organization. It does not run training or evaluation.
+
 ## MVP Scope
 
-The current MVP implements all four proposal obstacle types.
+The current MVP implements all four proposal obstacle types and the suite/layout layer.
 
 - `moving_hurdle`: one actor per environment, periodic motion along `x` or `y`.
 - `shifting_gap`: two edge actors per environment, periodic motion along `x` or `y`.
@@ -46,6 +67,7 @@ The implementation stores a reset time per environment so motion can restart cle
 New file:
 
 - `legged_gym/legged_gym/utils/dynamic_obstacles.py`
+- `legged_gym/legged_gym/utils/dynamic_terrain_suites.py`
 
 Key class:
 
@@ -60,7 +82,7 @@ Current methods:
 - `update(t)`
 - `get_state()`
 
-The manager creates box assets with `gym.create_box()`, creates the selected actor set per environment, stores actor indices, and updates the full Isaac Gym root-state tensor through `set_actor_root_state_tensor_indexed()`.
+The manager creates box assets with `gym.create_box()`, creates the selected primitive or suite actor set per environment, stores actor indices, actor types, and layout ids, and updates the full Isaac Gym root-state tensor through `set_actor_root_state_tensor_indexed()`.
 
 Config validation now rejects malformed motion ranges, negative frequencies, non-positive dimensions, invalid env ids, missing actor indices, and unsupported obstacle types before silently doing the wrong thing.
 
@@ -91,6 +113,9 @@ python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacl
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type shifting_gap --steps 1000
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type changing_step_height --steps 1000
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type time_varying_ramp --steps 1000
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --suite pure_hurdle --layout_id 0 --steps 500 --rows 2 --cols 2 --headless
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --suite mixed --layout_id 2 --steps 500 --rows 2 --cols 2
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --list_suites
 ```
 
 Add `--headless` for an import/simulation smoke path without opening a viewer. The script forces `num_envs = 1`, uses a tiny terrain grid, steps zero actions, and does not create a PPO runner or wandb run.

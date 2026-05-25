@@ -23,11 +23,17 @@ Suggested constraints:
 
 - Use a very small environment count, such as `num_envs = 1` or `num_envs = 4`.
 - Set `dynamic_obstacles.enable = True`.
-- Set `dynamic_obstacles.type` to one of:
+- For primitive checks, set `dynamic_obstacles.use_suites = False` and `dynamic_obstacles.type` to one of:
   - `"moving_hurdle"`
   - `"shifting_gap"`
   - `"changing_step_height"`
   - `"time_varying_ramp"`
+- For suite checks, set `dynamic_obstacles.use_suites = True` and `dynamic_obstacles.suite` to one of:
+  - `"pure_hurdle"`
+  - `"pure_step"`
+  - `"pure_gap"`
+  - `"pure_ramp"`
+  - `"mixed"`
 - Keep the original rewards, observations, and PPO code unchanged.
 - Do not run training.
 
@@ -38,6 +44,9 @@ python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacl
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type shifting_gap --steps 1000
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type changing_step_height --steps 1000
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type time_varying_ramp --steps 1000
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --suite pure_hurdle --layout_id 0 --steps 500 --rows 2 --cols 2 --headless
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --suite mixed --layout_id 2 --steps 500 --rows 2 --cols 2
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --list_suites
 ```
 
 For WSL, run from Windows Terminal rather than the VS Code terminal, keep `num_envs = 1`, and do not run full training just to inspect terrain.
@@ -50,6 +59,7 @@ Expected result:
 - For `changing_step_height`, one step actor appears and moves along z.
 - For `time_varying_ramp`, one ramp box appears and changes pitch angle over time.
 - The static terrain mesh does not change.
+- For suite mode, `get_state()` includes `suite`, `layout_id`, `actor_indices`, `actor_types`, current positions/orientations, and type-specific state.
 
 ## 2. Collision Check
 
@@ -112,16 +122,31 @@ python tools/check_terrain_design.py
 Expected result:
 
 - All four obstacle type names are present in code, docs, and the viewer script.
+- `DYNAMIC_TERRAIN_SUITES` includes at least four layouts each for `pure_hurdle`, `pure_step`, `pure_gap`, and `pure_ramp`, and at least three layouts for `mixed`.
 - The viewer imports Isaac Gym before torch.
 - The viewer does not create a PPO runner or wandb run.
 - Dynamic obstacles remain disabled by default.
 
-## 6. Future Training Check
+## 6. Task Profile Check
+
+Goal: confirm task-level names exist without changing original `a1` or `go1`.
+
+Expected registry entries:
+
+- `a1_dynamic_hurdle` -> `pure_hurdle`
+- `a1_dynamic_step` -> `pure_step`
+- `a1_dynamic_gap` -> `pure_gap`
+- `a1_dynamic_ramp` -> `pure_ramp`
+- `a1_dynamic_mixed` -> `mixed`
+
+## 7. Future Training Check
 
 Training is not part of this task.
 
-Only after viewer, collision, reset, and static-baseline checks pass should future work consider:
+Only after viewer, collision, reset, suite-layout, and static-baseline checks pass should future work consider:
 
 - exposing dynamic obstacle state to privileged observations,
+- training separate Phase 1 base policies on the pure suites,
+- distilling or combining with mixed layouts in Phase 2,
 - running small-scale smoke training,
 - then running full training comparisons.

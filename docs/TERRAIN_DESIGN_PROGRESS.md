@@ -10,13 +10,18 @@ The terrain design work is complete at the scaffold/MVP level. Dynamic terrain r
 - Implemented `shifting_gap` as two thin box actors that move together to represent shifting takeoff/landing boundaries without editing the terrain mesh.
 - Implemented `changing_step_height` as a fixed-size step box whose center z position changes over time.
 - Implemented `time_varying_ramp` as a box actor whose pitch quaternion changes over time. This is an MVP approximation rather than a true ramp mesh.
+- Added a dynamic terrain suite/layout layer in `DYNAMIC_TERRAIN_SUITES`.
+- Added `pure_hurdle`, `pure_step`, `pure_gap`, and `pure_ramp` single-skill suites with 4 layouts each.
+- Added a `mixed` suite with 3 layouts: hurdle+step, gap+ramp, and hurdle+gap+step+ramp.
 - Integrated dynamic obstacles into the `LeggedRobot` lifecycle during environment creation, reset, and per-step simulation updates.
 - Added `legged_gym/legged_gym/scripts/view_dynamic_terrain.py` for one-env viewer/debug inspection without PPO training, evaluation, wandb, or policy loading.
 - Added `tools/check_terrain_design.py` for lightweight static design checks.
+- Added task registry entries for `a1_dynamic_hurdle`, `a1_dynamic_step`, `a1_dynamic_gap`, `a1_dynamic_ramp`, and `a1_dynamic_mixed`. The original `a1` and `go1` tasks remain unchanged.
 
 ## Remaining Validation
 
 - Runtime viewer validation for all four dynamic obstacle MVPs.
+- Runtime viewer validation for the suite layouts.
 - Collision and reset-randomization validation.
 - Training and evaluation with dynamic obstacles enabled, after viewer/collision/reset validation is complete.
 - Optional privileged-observation support for dynamic obstacle state.
@@ -30,6 +35,13 @@ python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacl
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type shifting_gap --steps 1000
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type changing_step_height --steps 1000
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type time_varying_ramp --steps 1000
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --suite pure_hurdle --layout_id 0 --steps 500 --rows 2 --cols 2 --headless
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --suite mixed --layout_id 2 --steps 500 --rows 2 --cols 2
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --list_suites
 ```
 
 On WSL, prefer Windows Terminal over the VS Code terminal, keep `num_envs = 1`, and do not run training just to inspect terrain.
+
+## Training Organization
+
+Phase 1 can train separate base policies on `pure_hurdle`, `pure_step`, `pure_gap`, and `pure_ramp`. Phase 2 can later distill or combine with `mixed` layouts. This progress checkpoint only adds the terrain/task organization; no training or evaluation has been run.

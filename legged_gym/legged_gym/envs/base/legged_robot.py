@@ -1163,17 +1163,36 @@ class LeggedRobot(BaseTask):
                 gymutil.draw_lines(sphere_geom_arrow, self.gym, self.viewer, self.envs[self.lookat_id], pose)
         
     def _draw_feet(self):
-        if hasattr(self, 'feet_at_edge'):
-            non_edge_geom = gymutil.WireframeSphereGeometry(0.02, 16, 16, None, color=(0, 1, 0))
-            edge_geom = gymutil.WireframeSphereGeometry(0.02, 16, 16, None, color=(1, 0, 0))
+        if self.viewer is None:
+            return
 
-            feet_pos = self.rigid_body_states[:, self.feet_indices, :3]
-            for i in range(4):
-                pose = gymapi.Transform(gymapi.Vec3(feet_pos[self.lookat_id, i, 0], feet_pos[self.lookat_id, i, 1], feet_pos[self.lookat_id, i, 2]), r=None)
-                if self.feet_at_edge[self.lookat_id, i]:
-                    gymutil.draw_lines(edge_geom, self.gym, self.viewer, self.envs[i], pose)
-                else:
-                    gymutil.draw_lines(non_edge_geom, self.gym, self.viewer, self.envs[i], pose)
+        if not hasattr(self, "envs") or len(self.envs) == 0:
+            return
+
+        if not hasattr(self, "feet_at_edge"):
+            return
+
+        draw_env_id = min(int(self.lookat_id), len(self.envs) - 1)
+
+        non_edge_geom = gymutil.WireframeSphereGeometry(0.02, 16, 16, None, color=(0, 1, 0))
+        edge_geom = gymutil.WireframeSphereGeometry(0.02, 16, 16, None, color=(1, 0, 0))
+
+        feet_pos = self.rigid_body_states[:, self.feet_indices, :3]
+
+        for foot_id in range(4):
+            pose = gymapi.Transform(
+                gymapi.Vec3(
+                    feet_pos[draw_env_id, foot_id, 0],
+                    feet_pos[draw_env_id, foot_id, 1],
+                    feet_pos[draw_env_id, foot_id, 2],
+                ),
+                r=None,
+            )
+
+            if self.feet_at_edge[draw_env_id, foot_id]:
+                gymutil.draw_lines(edge_geom, self.gym, self.viewer, self.envs[draw_env_id], pose)
+            else:
+                gymutil.draw_lines(non_edge_geom, self.gym, self.viewer, self.envs[draw_env_id], pose)
     
     def _init_height_points(self):
         """ Returns points at which the height measurments are sampled (in base frame)

@@ -200,7 +200,15 @@ class LeggedRobotCfg(BaseConfig):
 
     class dynamic_obstacles:
         enable = False
+
+        # Primitive mode remains the default behavior. Suite mode organizes the
+        # same actor primitives into original-style single-skill and mixed
+        # layout groups, but is still disabled unless explicitly enabled.
         type = "moving_hurdle"
+        use_suites = False
+        suite = "pure_hurdle"
+        layout_id = 0
+        layout_randomization = True
 
         # Common dynamic obstacle settings. These are intentionally disabled by
         # default so the original static parkour baseline is unchanged.

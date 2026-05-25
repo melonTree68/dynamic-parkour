@@ -8,6 +8,7 @@ to wandb, train, or evaluate.
 import isaacgym  # noqa: F401
 
 from legged_gym.envs import *  # noqa: F401,F403
+from legged_gym.utils.dynamic_terrain_suites import DYNAMIC_TERRAIN_SUITES
 from legged_gym.utils import task_registry
 from legged_gym.utils.helpers import parse_arguments
 
@@ -20,6 +21,7 @@ SUPPORTED_OBSTACLE_TYPES = (
     "changing_step_height",
     "time_varying_ramp",
 )
+SUPPORTED_SUITES = tuple(DYNAMIC_TERRAIN_SUITES.keys())
 
 
 def get_args():
@@ -29,7 +31,35 @@ def get_args():
             "name": "--obstacle_type",
             "type": str,
             "default": "moving_hurdle",
-            "help": "Dynamic obstacle type to inspect.",
+            "help": "Primitive dynamic obstacle type to inspect.",
+        },
+        {
+            "name": "--suite",
+            "type": str,
+            "default": None,
+            "help": "Dynamic terrain suite to inspect.",
+        },
+        {
+            "name": "--layout_id",
+            "type": int,
+            "default": 0,
+            "help": "Suite layout id when --suite is set.",
+        },
+        {
+            "name": "--random_layout",
+            "action": "store_true",
+            "help": "Sample a layout per env from the selected suite.",
+        },
+        {
+            "name": "--list_suites",
+            "action": "store_true",
+            "help": "Print available suites and layouts, then exit.",
+        },
+        {
+            "name": "--print_state_every",
+            "type": int,
+            "default": 0,
+            "help": "Print dynamic obstacle state every N steps.",
         },
         {
             "name": "--steps",
@@ -44,8 +74,8 @@ def get_args():
             "default": 1,
             "help": "Kept for compatibility; forced to 1 by this script.",
         },
-        {"name": "--rows", "type": int, "default": 1, "help": "Terrain rows."},
-        {"name": "--cols", "type": int, "default": 1, "help": "Terrain cols."},
+        {"name": "--rows", "type": int, "default": 2, "help": "Terrain rows."},
+        {"name": "--cols", "type": int, "default": 2, "help": "Terrain cols."},
         {"name": "--seed", "type": int, "help": "Random seed."},
         {
             "name": "--device",
@@ -76,8 +106,21 @@ def get_args():
     return args
 
 
-def configure_tiny_dynamic_env(env_cfg, obstacle_type, rows, cols):
-    if obstacle_type not in SUPPORTED_OBSTACLE_TYPES:
+def list_suites():
+    for suite_name, layouts in DYNAMIC_TERRAIN_SUITES.items():
+        print("{}: {} layouts".format(suite_name, len(layouts)))
+        for layout_id, layout in enumerate(layouts):
+            print("  {}: {}".format(layout_id, layout["name"]))
+
+
+def configure_tiny_dynamic_env(env_cfg, obstacle_type, suite, layout_id, random_layout, rows, cols):
+    if suite is not None and suite not in SUPPORTED_SUITES:
+        raise ValueError(
+            "Unknown suite '{}'. Supported suites are {}.".format(
+                suite, SUPPORTED_SUITES
+            )
+        )
+    if suite is None and obstacle_type not in SUPPORTED_OBSTACLE_TYPES:
         raise ValueError(
             "Unknown obstacle_type '{}'. Supported types are {}.".format(
                 obstacle_type, SUPPORTED_OBSTACLE_TYPES
@@ -102,24 +145,51 @@ def configure_tiny_dynamic_env(env_cfg, obstacle_type, rows, cols):
             env_cfg.terrain.terrain_dict.values()
         )
 
-    env_cfg.domain_rand.randomize_friction = False
+    env_cfg.domain_rand.randomize_friction = True
     env_cfg.domain_rand.push_robots = False
     env_cfg.domain_rand.randomize_base_mass = False
     env_cfg.domain_rand.randomize_base_com = False
 
     env_cfg.dynamic_obstacles.enable = True
-    env_cfg.dynamic_obstacles.type = obstacle_type
+    if suite is None:
+        env_cfg.dynamic_obstacles.use_suites = False
+        env_cfg.dynamic_obstacles.type = obstacle_type
+    else:
+        env_cfg.dynamic_obstacles.use_suites = True
+        env_cfg.dynamic_obstacles.suite = suite
+        env_cfg.dynamic_obstacles.layout_id = layout_id
+        env_cfg.dynamic_obstacles.layout_randomization = random_layout
     return env_cfg
+
+
+def summarize_state(state):
+    summary = {
+        "suite": state.get("suite"),
+        "layout_id": state.get("layout_id"),
+        "actor_types": state.get("actor_types"),
+    }
+    if "current_position" in state:
+        summary["current_position"] = state["current_position"].detach().cpu().tolist()
+    if "current_ramp_angle" in state:
+        summary["current_ramp_angle"] = state["current_ramp_angle"].detach().cpu().tolist()
+    return summary
 
 
 def main():
     args = get_args()
+    if args.list_suites:
+        list_suites()
+        return
+
     env_cfg, _ = task_registry.get_cfgs(name=args.task)
     env_cfg = configure_tiny_dynamic_env(
         env_cfg,
         args.obstacle_type,
-        max(1, args.rows),
-        max(1, args.cols),
+        args.suite,
+        args.layout_id,
+        args.random_layout,
+        max(2, args.rows),
+        max(2, args.cols),
     )
 
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
@@ -130,13 +200,26 @@ def main():
         requires_grad=False,
     )
 
-    print(
-        "Viewing dynamic obstacle '{}' for {} zero-action steps.".format(
-            args.obstacle_type, args.steps
+    if args.suite is None:
+        target = "primitive '{}'".format(args.obstacle_type)
+    else:
+        target = "suite '{}' layout_id {} random_layout={}".format(
+            args.suite, args.layout_id, args.random_layout
         )
-    )
-    for _ in range(max(0, args.steps)):
+    print("Viewing dynamic terrain {} for {} zero-action steps.".format(target, args.steps))
+
+    for step_id in range(max(0, args.steps)):
         env.step(actions)
+        if (
+            args.print_state_every > 0
+            and env.dynamic_obstacles is not None
+            and step_id % args.print_state_every == 0
+        ):
+            print(
+                "step {} dynamic state: {}".format(
+                    step_id, summarize_state(env.dynamic_obstacles.get_state())
+                )
+            )
 
     if env.dynamic_obstacles is not None:
         state = env.dynamic_obstacles.get_state()

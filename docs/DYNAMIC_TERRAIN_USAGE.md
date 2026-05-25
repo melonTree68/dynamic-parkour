@@ -18,19 +18,44 @@ The repository now contains actor-based dynamic terrain MVPs for:
 
 ## Enabling The MVP
 
-In a config derived from `LeggedRobotCfg`, enable:
+Primitive mode remains available. In a config derived from `LeggedRobotCfg`, enable:
 
 ```python
 env_cfg.dynamic_obstacles.enable = True
+env_cfg.dynamic_obstacles.use_suites = False
 env_cfg.dynamic_obstacles.type = "moving_hurdle"
 ```
 
 Replace `"moving_hurdle"` with `"shifting_gap"`, `"changing_step_height"`, or `"time_varying_ramp"` to inspect the other MVPs. Do this only for a small viewer/debug run at first.
 
+Suite mode organizes the primitives into original-style single-skill and mixed task layouts:
+
+```python
+env_cfg.dynamic_obstacles.enable = True
+env_cfg.dynamic_obstacles.use_suites = True
+env_cfg.dynamic_obstacles.suite = "pure_hurdle"
+env_cfg.dynamic_obstacles.layout_id = 0
+env_cfg.dynamic_obstacles.layout_randomization = False
+```
+
+Supported suites:
+
+- `pure_hurdle`: 4 layouts.
+- `pure_step`: 4 layouts.
+- `pure_gap`: 4 layouts.
+- `pure_ramp`: 4 layouts.
+- `mixed`: 3 layouts.
+
+`layout_randomization = True` samples a layout per environment at actor creation time. Resets resample motion parameters but do not swap actor assets.
+
 ## Configuration Fields
 
 - `enable`: global switch. Default is `False`.
 - `type`: obstacle type. Supported values are `"moving_hurdle"`, `"shifting_gap"`, `"changing_step_height"`, and `"time_varying_ramp"`.
+- `use_suites`: suite/layout switch. Default is `False`.
+- `suite`: selected suite when `use_suites = True`.
+- `layout_id`: fixed layout id when suite randomization is off.
+- `layout_randomization`: sample a layout per env from the selected suite.
 - `num_obstacles_per_env`: legacy/common guard. The manager derives the actual actor count from the selected type; `shifting_gap` uses two edge actors.
 - `debug_draw`: reserved for future visualization helpers.
 - `randomize_on_reset`: resample motion parameters for reset envs.
@@ -76,6 +101,9 @@ python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacl
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type shifting_gap --steps 1000
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type changing_step_height --steps 1000
 python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type time_varying_ramp --steps 1000
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --suite pure_hurdle --layout_id 0 --steps 500 --rows 2 --cols 2 --headless
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --suite mixed --layout_id 2 --steps 500 --rows 2 --cols 2
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --list_suites
 ```
 
 For a headless smoke path:
@@ -90,6 +118,7 @@ The script:
 - forces `num_envs = 1`,
 - uses a tiny terrain grid by default,
 - enables only the selected dynamic obstacle,
+- supports primitive mode through `--obstacle_type` and suite mode through `--suite`,
 - steps zero actions,
 - does not create a PPO runner,
 - does not use wandb.
@@ -106,8 +135,21 @@ On WSL, run from Windows Terminal rather than the VS Code terminal, keep `num_en
 ## Future Roadmap
 
 1. Verify each obstacle actor type in the viewer.
-2. Verify collision behavior with the robot.
-3. Verify reset randomization for selected envs.
-4. Add debug drawing only if the existing viewer tools are not enough.
-5. Consider exposing dynamic obstacle state to privileged observations.
-6. Only after the scaffold is validated, run training comparisons.
+2. Verify each suite layout in the viewer.
+3. Verify collision behavior with the robot.
+4. Verify reset randomization for selected envs.
+5. Add debug drawing only if the existing viewer tools are not enough.
+6. Consider exposing dynamic obstacle state to privileged observations.
+7. Only after the scaffold is validated, run training comparisons.
+
+## Task Profiles
+
+The following task registry entries are available for future Phase 1 work:
+
+- `a1_dynamic_hurdle` -> `pure_hurdle`
+- `a1_dynamic_step` -> `pure_step`
+- `a1_dynamic_gap` -> `pure_gap`
+- `a1_dynamic_ramp` -> `pure_ramp`
+- `a1_dynamic_mixed` -> `mixed`
+
+They preserve the original A1 robot and PPO config shape and only enable the dynamic obstacle suite profile. The original `a1` and `go1` tasks are unchanged.

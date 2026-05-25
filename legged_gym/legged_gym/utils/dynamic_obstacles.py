@@ -3,13 +3,21 @@ import math
 import torch
 from isaacgym import gymapi, gymtorch
 
+from legged_gym.utils.dynamic_terrain_suites import (
+    DYNAMIC_TERRAIN_SUITES,
+    get_suite_layouts,
+    layout_actor_count,
+    max_suite_actor_count,
+    suite_names,
+)
+
 
 class DynamicObstacleManager:
     """Create and update optional dynamic obstacle actors.
 
-    The first implementation intentionally keeps terrain heightfields and
-    triangle meshes static. Dynamic obstacles are Isaac Gym box actors whose
-    root states are updated through the simulator root-state tensor.
+    Heightfields/heightfield and triangle meshes stay static. Dynamic terrain is layered on
+    top as Isaac Gym box actors whose root states are updated through the
+    simulator root-state tensor.
     """
 
     SUPPORTED_TYPES = (
@@ -18,6 +26,7 @@ class DynamicObstacleManager:
         "changing_step_height",
         "time_varying_ramp",
     )
+    INACTIVE_TYPE = "inactive"
 
     def __init__(self, gym, sim, device, cfg, num_envs):
         self.gym = gym
@@ -26,26 +35,23 @@ class DynamicObstacleManager:
         self.cfg = cfg
         self.num_envs = num_envs
         self.enabled = bool(getattr(cfg, "enable", False))
+        self.use_suites = bool(getattr(cfg, "use_suites", False))
         self.root_states = None
 
         if not self.enabled:
             return
 
-        if cfg.type not in self.SUPPORTED_TYPES:
-            raise ValueError(
-                "Unknown dynamic obstacle type '{}'. Supported types are {}.".format(
-                    cfg.type, self.SUPPORTED_TYPES
-                )
-            )
-
         self._validate_cfg()
-        self.num_obstacles_per_env = self._num_obstacles_for_type(cfg.type)
-        self.axis_id = self._motion_axis_id()
         self.all_env_ids = torch.arange(num_envs, dtype=torch.long, device=device)
         self.identity_quat = torch.tensor(
             [0.0, 0.0, 0.0, 1.0], dtype=torch.float, device=device
         )
         self.zero_ang_vel = torch.zeros(3, dtype=torch.float, device=device)
+
+        self.suite_layouts = (
+            get_suite_layouts(self.cfg.suite) if self.use_suites else None
+        )
+        self.num_obstacles_per_env = self._num_obstacles_for_mode()
         self.actor_handles = [[] for _ in range(num_envs)]
         self.actor_indices = torch.full(
             (num_envs, self.num_obstacles_per_env),
@@ -63,6 +69,7 @@ class DynamicObstacleManager:
         )
         self.current_orientations[:, :, 3] = 1.0
         self.current_angular_velocities = torch.zeros_like(self.base_positions)
+
         self.amplitudes = torch.zeros(
             num_envs, self.num_obstacles_per_env, dtype=torch.float, device=device
         )
@@ -72,6 +79,27 @@ class DynamicObstacleManager:
         self.current_offsets = torch.zeros_like(self.amplitudes)
         self.current_step_heights = torch.zeros_like(self.amplitudes)
         self.current_ramp_angles = torch.zeros_like(self.amplitudes)
+
+        self.axis_ids = torch.zeros(
+            num_envs, self.num_obstacles_per_env, dtype=torch.long, device=device
+        )
+        self.base_ramp_pitches = torch.zeros_like(self.amplitudes)
+        self.step_heights = torch.zeros_like(self.amplitudes)
+        self.active_mask = torch.zeros(
+            num_envs, self.num_obstacles_per_env, dtype=torch.bool, device=device
+        )
+        self.motion_group_ids = torch.full(
+            (num_envs, self.num_obstacles_per_env),
+            -1,
+            dtype=torch.long,
+            device=device,
+        )
+        self.layout_ids = torch.full((num_envs,), -1, dtype=torch.long, device=device)
+        self.actor_type_names = [
+            [self.INACTIVE_TYPE for _ in range(self.num_obstacles_per_env)]
+            for _ in range(num_envs)
+        ]
+        self.actor_slots_by_env = [[] for _ in range(num_envs)]
         self.assets = {}
 
     def create_assets(self):
@@ -84,44 +112,28 @@ class DynamicObstacleManager:
         asset_options.fix_base_link = bool(self.cfg.make_kinematic)
         asset_options.thickness = 0.01
 
-        if self.cfg.type == "moving_hurdle":
-            self.assets["moving_hurdle"] = self.gym.create_box(
-                self.sim,
-                self.cfg.hurdle_length,
-                self.cfg.hurdle_thickness,
-                self.cfg.hurdle_height,
-                asset_options,
-            )
-        elif self.cfg.type == "shifting_gap":
-            self.assets["shifting_gap_edge"] = self.gym.create_box(
-                self.sim,
-                self.cfg.gap_edge_length,
-                self.cfg.gap_edge_width,
-                self.cfg.gap_edge_height,
-                asset_options,
-            )
-        elif self.cfg.type == "changing_step_height":
-            self.assets["changing_step_height"] = self.gym.create_box(
-                self.sim,
-                self.cfg.step_length,
-                self.cfg.step_width,
-                self.cfg.step_height,
-                asset_options,
-            )
-        elif self.cfg.type == "time_varying_ramp":
-            self.assets["time_varying_ramp"] = self.gym.create_box(
-                self.sim,
-                self.cfg.ramp_length,
-                self.cfg.ramp_width,
-                self.cfg.ramp_thickness,
-                asset_options,
-            )
-        else:
-            raise ValueError(
-                "Unknown dynamic obstacle type '{}'. Supported types are {}.".format(
-                    self.cfg.type, self.SUPPORTED_TYPES
+        possible_layouts = self._possible_layouts()
+        for layout in possible_layouts:
+            for slot in self._expand_layout(layout):
+                key = self._asset_key(slot)
+                if key in self.assets:
+                    continue
+                size = slot["size"]
+                self.assets[key] = self.gym.create_box(
+                    self.sim,
+                    float(size[0]),
+                    float(size[1]),
+                    float(size[2]),
+                    asset_options,
                 )
-            )
+
+        self.assets[self.INACTIVE_TYPE] = self.gym.create_box(
+            self.sim,
+            0.02,
+            0.02,
+            0.02,
+            asset_options,
+        )
 
     def create_obstacles_for_env(self, env_handle, env_id, env_origin):
         if not self.enabled:
@@ -132,19 +144,36 @@ class DynamicObstacleManager:
         if env_id < 0 or env_id >= self.num_envs:
             raise ValueError("env_id {} is outside [0, {})".format(env_id, self.num_envs))
 
-        if self.cfg.type == "moving_hurdle":
-            self._create_moving_hurdle(env_handle, env_id, env_origin)
-        elif self.cfg.type == "shifting_gap":
-            self._create_shifting_gap(env_handle, env_id, env_origin)
-        elif self.cfg.type == "changing_step_height":
-            self._create_changing_step_height(env_handle, env_id, env_origin)
-        elif self.cfg.type == "time_varying_ramp":
-            self._create_time_varying_ramp(env_handle, env_id, env_origin)
-        else:
-            raise ValueError(
-                "Unknown dynamic obstacle type '{}'. Supported types are {}.".format(
-                    self.cfg.type, self.SUPPORTED_TYPES
-                )
+        layout_id, layout = self._select_layout_for_env(env_id)
+        slots = self._expand_layout(layout)
+        self.layout_ids[env_id] = layout_id
+        self.actor_slots_by_env[env_id] = slots
+
+        for actor_slot, slot in enumerate(slots):
+            self._configure_actor_slot(env_id, actor_slot, env_origin, slot)
+            self._create_actor(
+                env_handle,
+                env_id,
+                actor_slot,
+                self.assets[self._asset_key(slot)],
+                self._actor_name(slot, actor_slot),
+                self._pose_from_position(
+                    self.base_positions[env_id, actor_slot],
+                    self.current_orientations[env_id, actor_slot],
+                ),
+                active=True,
+            )
+
+        for actor_slot in range(len(slots), self.num_obstacles_per_env):
+            self._configure_inactive_slot(env_id, actor_slot, env_origin)
+            self._create_actor(
+                env_handle,
+                env_id,
+                actor_slot,
+                self.assets[self.INACTIVE_TYPE],
+                "dynamic_inactive_{}".format(actor_slot),
+                self._pose_from_position(self.base_positions[env_id, actor_slot]),
+                active=False,
             )
 
     def bind_root_state_tensor(self, root_states):
@@ -186,6 +215,11 @@ class DynamicObstacleManager:
             return {}
 
         return {
+            "suite": self.cfg.suite if self.use_suites else None,
+            "use_suites": self.use_suites,
+            "layout_id": self.layout_ids,
+            "actor_indices": self.actor_indices,
+            "actor_types": self.actor_type_names,
             "current_position": self.current_positions,
             "current_velocity": self.current_velocities,
             "current_orientation": self.current_orientations,
@@ -194,20 +228,16 @@ class DynamicObstacleManager:
             "amplitude": self.amplitudes,
             "frequency": self.frequencies,
             "phase": self.phases,
+            "active_mask": self.active_mask,
             "current_offset": self.current_offsets,
             "current_gap_offset": self.current_offsets,
             "current_step_height": self.current_step_heights,
             "current_ramp_angle": self.current_ramp_angles,
-            "actor_indices": self.actor_indices,
         }
 
-    def _uniform(self, value_range, shape):
-        low, high = value_range
-        return torch.empty(shape, dtype=torch.float, device=self.device).uniform_(
-            float(low), float(high)
-        )
-
     def _compute_motion(self, env_ids, t):
+        if self.use_suites:
+            return self._update_suite_layout(env_ids, t)
         if self.cfg.type == "moving_hurdle":
             return self._update_moving_hurdle(env_ids, t)
         if self.cfg.type == "shifting_gap":
@@ -222,6 +252,55 @@ class DynamicObstacleManager:
             )
         )
 
+    def _update_suite_layout(self, env_ids, t):
+        return self._update_all_actor_slots(env_ids, t)
+
+    def _update_moving_hurdle(self, env_ids, t):
+        return self._update_all_actor_slots(env_ids, t)
+
+    def _update_shifting_gap(self, env_ids, t):
+        return self._update_all_actor_slots(env_ids, t)
+
+    def _update_changing_step_height(self, env_ids, t):
+        return self._update_all_actor_slots(env_ids, t)
+
+    def _update_time_varying_ramp(self, env_ids, t):
+        return self._update_all_actor_slots(env_ids, t)
+
+    def _update_all_actor_slots(self, env_ids, t):
+        offset, velocity = self._compute_sinusoid(env_ids, t)
+        active = self.active_mask[env_ids]
+        axis_ids = self.axis_ids[env_ids]
+
+        positions = self.base_positions[env_ids].clone()
+        velocities = torch.zeros_like(positions)
+        orientations, angular_velocities = self._fixed_orientation(env_ids)
+
+        for axis_id in [0, 1, 2]:
+            mask = active & (axis_ids == axis_id)
+            position_axis = positions[:, :, axis_id]
+            velocity_axis = velocities[:, :, axis_id]
+            position_axis[mask] = position_axis[mask] + offset[mask]
+            velocity_axis[mask] = velocity[mask]
+            positions[:, :, axis_id] = position_axis
+            velocities[:, :, axis_id] = velocity_axis
+
+        ramp_mask = active & self._actor_type_mask(env_ids, "time_varying_ramp")
+        if torch.any(ramp_mask):
+            ramp_angles = self.base_ramp_pitches[env_ids] + offset
+            half_angles = 0.5 * ramp_angles
+            orientation_y = orientations[:, :, 1]
+            orientation_w = orientations[:, :, 3]
+            angular_velocity_y = angular_velocities[:, :, 1]
+            orientation_y[ramp_mask] = torch.sin(half_angles[ramp_mask])
+            orientation_w[ramp_mask] = torch.cos(half_angles[ramp_mask])
+            angular_velocity_y[ramp_mask] = velocity[ramp_mask]
+            orientations[:, :, 1] = orientation_y
+            orientations[:, :, 3] = orientation_w
+            angular_velocities[:, :, 1] = angular_velocity_y
+
+        return positions, velocities, orientations, angular_velocities
+
     def _compute_sinusoid(self, env_ids, t):
         elapsed = t - self.reset_times[env_ids]
         angle = 2.0 * math.pi * self.frequencies[env_ids] * elapsed + self.phases[env_ids]
@@ -233,53 +312,9 @@ class DynamicObstacleManager:
             * self.frequencies[env_ids]
             * torch.cos(angle)
         )
+        offset = offset * self.active_mask[env_ids]
+        velocity = velocity * self.active_mask[env_ids]
         return offset, velocity
-
-    def _update_moving_hurdle(self, env_ids, t):
-        offset, velocity = self._compute_sinusoid(env_ids, t)
-        positions = self.base_positions[env_ids].clone()
-        velocities = torch.zeros_like(positions)
-        positions[:, :, self.axis_id] += offset
-        velocities[:, :, self.axis_id] = velocity
-        orientations, angular_velocities = self._fixed_orientation(env_ids)
-        return positions, velocities, orientations, angular_velocities
-
-    def _update_shifting_gap(self, env_ids, t):
-        offset, velocity = self._compute_sinusoid(env_ids, t)
-        positions = self.base_positions[env_ids].clone()
-        velocities = torch.zeros_like(positions)
-        positions[:, :, self.axis_id] += offset
-        velocities[:, :, self.axis_id] = velocity
-        orientations, angular_velocities = self._fixed_orientation(env_ids)
-        return positions, velocities, orientations, angular_velocities
-
-    def _update_changing_step_height(self, env_ids, t):
-        offset, velocity = self._compute_sinusoid(env_ids, t)
-        positions = self.base_positions[env_ids].clone()
-        velocities = torch.zeros_like(positions)
-        positions[:, :, 2] += offset
-        velocities[:, :, 2] = velocity
-        orientations, angular_velocities = self._fixed_orientation(env_ids)
-        return positions, velocities, orientations, angular_velocities
-
-    def _update_time_varying_ramp(self, env_ids, t):
-        offset, angular_velocity_y = self._compute_sinusoid(env_ids, t)
-        ramp_angles = float(self.cfg.ramp_base_pitch) + offset
-        half_angles = 0.5 * ramp_angles
-        orientations = torch.zeros(
-            len(env_ids),
-            self.num_obstacles_per_env,
-            4,
-            dtype=torch.float,
-            device=self.device,
-        )
-        orientations[:, :, 1] = torch.sin(half_angles)
-        orientations[:, :, 3] = torch.cos(half_angles)
-        positions = self.base_positions[env_ids].clone()
-        velocities = torch.zeros_like(positions)
-        angular_velocities = torch.zeros_like(positions)
-        angular_velocities[:, :, 1] = angular_velocity_y
-        return positions, velocities, orientations, angular_velocities
 
     def _write_actor_states(
         self, env_ids, positions, velocities, orientations, angular_velocities
@@ -326,50 +361,76 @@ class DynamicObstacleManager:
     def _validate_cfg(self):
         if self.num_envs <= 0:
             raise ValueError("DynamicObstacleManager requires num_envs > 0")
-        expected = self._num_obstacles_for_type(self.cfg.type)
+        if self.use_suites:
+            if self.cfg.suite not in DYNAMIC_TERRAIN_SUITES:
+                raise ValueError(
+                    "Unknown dynamic terrain suite '{}'. Supported suites are {}.".format(
+                        self.cfg.suite, suite_names()
+                    )
+                )
+            layouts = get_suite_layouts(self.cfg.suite)
+            if self.cfg.layout_id < 0 or self.cfg.layout_id >= len(layouts):
+                raise ValueError(
+                    "dynamic_obstacles.layout_id must be in [0, {}) for suite {}".format(
+                        len(layouts), self.cfg.suite
+                    )
+                )
+            for layout in layouts:
+                self._validate_layout(layout)
+            return
+
+        if self.cfg.type not in self.SUPPORTED_TYPES:
+            raise ValueError(
+                "Unknown dynamic obstacle type '{}'. Supported types are {}.".format(
+                    self.cfg.type, self.SUPPORTED_TYPES
+                )
+            )
+        expected = self._primitive_actor_count(self.cfg.type)
         if self.cfg.num_obstacles_per_env not in [1, expected]:
             raise NotImplementedError(
                 "{} currently supports {} derived obstacle actor(s) per env".format(
                     self.cfg.type, expected
                 )
             )
+        self._validate_layout(self._primitive_layout())
 
-        if self.cfg.type == "moving_hurdle":
-            self._validate_axis("motion_axis")
-            self._validate_ranges("amplitude_range", "frequency_range", "phase_range")
-            self._validate_positive(
-                "hurdle_length", "hurdle_thickness", "hurdle_height"
-            )
-        elif self.cfg.type == "shifting_gap":
-            self._validate_axis("gap_motion_axis")
-            self._validate_ranges(
-                "gap_amplitude_range", "gap_frequency_range", "gap_phase_range"
-            )
-            self._validate_positive(
-                "gap_edge_length",
-                "gap_edge_width",
-                "gap_edge_height",
-                "gap_edge_separation",
-            )
-        elif self.cfg.type == "changing_step_height":
-            self._validate_ranges(
-                "step_height_amplitude_range",
-                "step_frequency_range",
-                "step_phase_range",
-            )
-            self._validate_positive("step_length", "step_width", "step_height")
-        elif self.cfg.type == "time_varying_ramp":
-            self._validate_ranges(
-                "ramp_pitch_amplitude_range",
-                "ramp_frequency_range",
-                "ramp_phase_range",
-            )
-            self._validate_positive("ramp_length", "ramp_width", "ramp_thickness")
-        else:
-            raise ValueError(
-                "Unknown dynamic obstacle type '{}'. Supported types are {}.".format(
-                    self.cfg.type, self.SUPPORTED_TYPES
+    def _validate_layout(self, layout):
+        if "obstacles" not in layout:
+            raise ValueError("dynamic terrain layout must define obstacles")
+        for obstacle in layout["obstacles"]:
+            obstacle_type = obstacle["type"]
+            if obstacle_type not in self.SUPPORTED_TYPES:
+                raise ValueError(
+                    "Unknown dynamic obstacle type '{}'. Supported types are {}.".format(
+                        obstacle_type, self.SUPPORTED_TYPES
+                    )
                 )
+            if obstacle["actor_count"] != self._primitive_actor_count(obstacle_type):
+                raise ValueError(
+                    "layout obstacle '{}' has wrong actor_count".format(
+                        obstacle.get("name", obstacle_type)
+                    )
+                )
+            self._validate_range(obstacle["amplitude_range"], "amplitude_range")
+            self._validate_range(obstacle["frequency_range"], "frequency_range")
+            self._validate_range(obstacle["phase_range"], "phase_range")
+            if obstacle["frequency_range"][0] < 0:
+                raise ValueError("dynamic obstacle frequency ranges must be non-negative")
+            for value in obstacle["size"]:
+                if value <= 0:
+                    raise ValueError("dynamic obstacle sizes must be positive")
+            if obstacle_type in ["moving_hurdle", "shifting_gap"]:
+                if obstacle["motion_axis"] not in ["x", "y"]:
+                    raise ValueError("motion_axis must be 'x' or 'y'")
+            if obstacle_type == "shifting_gap" and obstacle["edge_separation"] <= 0:
+                raise ValueError("gap edge separation must be positive")
+
+    def _validate_range(self, value_range, name):
+        if len(value_range) != 2:
+            raise ValueError("dynamic_obstacles.{} must have two values".format(name))
+        if value_range[0] > value_range[1]:
+            raise ValueError(
+                "dynamic_obstacles.{} lower bound must be <= upper bound".format(name)
             )
 
     def _validate_env_ids(self, env_ids):
@@ -381,7 +442,217 @@ class DynamicObstacleManager:
         if torch.any(indices < 0):
             raise RuntimeError("dynamic obstacle actor indices are not fully initialized")
 
-    def _num_obstacles_for_type(self, obstacle_type):
+    def _possible_layouts(self):
+        if self.use_suites:
+            return self.suite_layouts
+        return [self._primitive_layout()]
+
+    def _primitive_layout(self):
+        cfg = self.cfg
+        if cfg.type == "moving_hurdle":
+            obstacle = {
+                "name": "primitive_moving_hurdle",
+                "type": "moving_hurdle",
+                "actor_count": 1,
+                "base_position": [
+                    cfg.base_position_x,
+                    cfg.base_position_y,
+                    cfg.base_position_z,
+                ],
+                "size": [cfg.hurdle_length, cfg.hurdle_thickness, cfg.hurdle_height],
+                "motion_axis": cfg.motion_axis,
+                "amplitude_range": cfg.amplitude_range,
+                "frequency_range": cfg.frequency_range,
+                "phase_range": cfg.phase_range,
+            }
+        elif cfg.type == "shifting_gap":
+            obstacle = {
+                "name": "primitive_shifting_gap",
+                "type": "shifting_gap",
+                "actor_count": 2,
+                "base_position": [
+                    cfg.gap_base_position_x,
+                    cfg.gap_base_position_y,
+                    cfg.gap_base_position_z,
+                ],
+                "size": [
+                    cfg.gap_edge_length,
+                    cfg.gap_edge_width,
+                    cfg.gap_edge_height,
+                ],
+                "motion_axis": cfg.gap_motion_axis,
+                "edge_separation": cfg.gap_edge_separation,
+                "amplitude_range": cfg.gap_amplitude_range,
+                "frequency_range": cfg.gap_frequency_range,
+                "phase_range": cfg.gap_phase_range,
+            }
+        elif cfg.type == "changing_step_height":
+            obstacle = {
+                "name": "primitive_changing_step_height",
+                "type": "changing_step_height",
+                "actor_count": 1,
+                "base_position": [
+                    cfg.step_base_position_x,
+                    cfg.step_base_position_y,
+                    cfg.step_base_position_z,
+                ],
+                "size": [cfg.step_length, cfg.step_width, cfg.step_height],
+                "motion_axis": "z",
+                "amplitude_range": cfg.step_height_amplitude_range,
+                "frequency_range": cfg.step_frequency_range,
+                "phase_range": cfg.step_phase_range,
+                "step_height": cfg.step_height,
+            }
+        elif cfg.type == "time_varying_ramp":
+            obstacle = {
+                "name": "primitive_time_varying_ramp",
+                "type": "time_varying_ramp",
+                "actor_count": 1,
+                "base_position": [
+                    cfg.ramp_base_position_x,
+                    cfg.ramp_base_position_y,
+                    cfg.ramp_base_position_z,
+                ],
+                "size": [cfg.ramp_length, cfg.ramp_width, cfg.ramp_thickness],
+                "motion_axis": "pitch",
+                "base_pitch": cfg.ramp_base_pitch,
+                "amplitude_range": cfg.ramp_pitch_amplitude_range,
+                "frequency_range": cfg.ramp_frequency_range,
+                "phase_range": cfg.ramp_phase_range,
+            }
+        else:
+            raise ValueError(
+                "Unknown dynamic obstacle type '{}'. Supported types are {}.".format(
+                    cfg.type, self.SUPPORTED_TYPES
+                )
+            )
+        return {"name": "primitive_{}".format(cfg.type), "obstacles": [obstacle]}
+
+    def _select_layout_for_env(self, env_id):
+        if not self.use_suites:
+            return 0, self._primitive_layout()
+        if self.cfg.layout_randomization:
+            layout_id = int(torch.randint(len(self.suite_layouts), (1,)).item())
+        else:
+            layout_id = int(self.cfg.layout_id)
+        return layout_id, self.suite_layouts[layout_id]
+
+    def _expand_layout(self, layout):
+        slots = []
+        group_id = 0
+        for obstacle in layout["obstacles"]:
+            obstacle_type = obstacle["type"]
+            if obstacle_type == "shifting_gap":
+                axis_id = self._axis_id(obstacle["motion_axis"])
+                edge_offset = 0.5 * obstacle["edge_separation"]
+                for edge_id, signed_offset in enumerate([-edge_offset, edge_offset]):
+                    base_position = list(obstacle["base_position"])
+                    base_position[axis_id] += signed_offset
+                    slot = dict(obstacle)
+                    slot["name"] = "{}_edge_{}".format(obstacle["name"], edge_id)
+                    slot["base_position"] = base_position
+                    slot["group_id"] = group_id
+                    slots.append(slot)
+            else:
+                slot = dict(obstacle)
+                slot["group_id"] = group_id
+                slots.append(slot)
+            group_id += 1
+        return slots
+
+    def _configure_actor_slot(self, env_id, actor_slot, env_origin, slot):
+        base_position = self._base_position(env_origin, slot["base_position"])
+        self.base_positions[env_id, actor_slot] = base_position
+        self.current_positions[env_id, actor_slot] = base_position
+        self.axis_ids[env_id, actor_slot] = self._slot_axis_id(slot)
+        self.base_ramp_pitches[env_id, actor_slot] = float(slot.get("base_pitch", 0.0))
+        self.step_heights[env_id, actor_slot] = float(slot.get("step_height", 0.0))
+        self.active_mask[env_id, actor_slot] = True
+        self.motion_group_ids[env_id, actor_slot] = int(slot["group_id"])
+        self.actor_type_names[env_id][actor_slot] = slot["type"]
+        if slot["type"] == "time_varying_ramp":
+            self.current_orientations[env_id, actor_slot] = self._pitch_quat(
+                float(slot.get("base_pitch", 0.0))
+            )
+
+    def _configure_inactive_slot(self, env_id, actor_slot, env_origin):
+        position = self._base_position(env_origin, [0.0, 0.0, -10.0])
+        self.base_positions[env_id, actor_slot] = position
+        self.current_positions[env_id, actor_slot] = position
+        self.current_orientations[env_id, actor_slot] = self.identity_quat
+        self.actor_type_names[env_id][actor_slot] = self.INACTIVE_TYPE
+
+    def _sample_motion_parameters(self, env_ids):
+        if self.cfg.randomize_on_reset:
+            for env_id in env_ids.tolist():
+                group_ids = self.motion_group_ids[env_id]
+                for group_id in torch.unique(group_ids[group_ids >= 0]).tolist():
+                    mask = group_ids == group_id
+                    slot_index = int(torch.nonzero(mask, as_tuple=False)[0].item())
+                    slot = self.actor_slots_by_env[env_id][slot_index]
+                    amplitude = self._uniform(slot["amplitude_range"], (1,)).item()
+                    frequency = self._uniform(slot["frequency_range"], (1,)).item()
+                    phase = self._uniform(slot["phase_range"], (1,)).item()
+                    self.amplitudes[env_id, mask] = amplitude
+                    self.frequencies[env_id, mask] = frequency
+                    self.phases[env_id, mask] = phase
+                inactive_mask = group_ids < 0
+                self.amplitudes[env_id, inactive_mask] = 0.0
+                self.frequencies[env_id, inactive_mask] = 0.0
+                self.phases[env_id, inactive_mask] = 0.0
+            return
+
+        for env_id in env_ids.tolist():
+            group_ids = self.motion_group_ids[env_id]
+            for group_id in torch.unique(group_ids[group_ids >= 0]).tolist():
+                mask = group_ids == group_id
+                slot_index = int(torch.nonzero(mask, as_tuple=False)[0].item())
+                slot = self.actor_slots_by_env[env_id][slot_index]
+                self.amplitudes[env_id, mask] = sum(slot["amplitude_range"]) / 2.0
+                self.frequencies[env_id, mask] = sum(slot["frequency_range"]) / 2.0
+                self.phases[env_id, mask] = 0.0
+            inactive_mask = group_ids < 0
+            self.amplitudes[env_id, inactive_mask] = 0.0
+            self.frequencies[env_id, inactive_mask] = 0.0
+            self.phases[env_id, inactive_mask] = 0.0
+
+    def _create_actor(self, env_handle, env_id, actor_slot, asset, name, pose, active):
+        collision_filter = self._collision_filter(active)
+        handle = self.gym.create_actor(
+            env_handle,
+            asset,
+            pose,
+            name,
+            env_id,
+            collision_filter,
+            0,
+        )
+        actor_index = self.gym.get_actor_index(env_handle, handle, gymapi.DOMAIN_SIM)
+        self.actor_handles[env_id].append(handle)
+        self.actor_indices[env_id, actor_slot] = actor_index
+        return handle
+
+    def _asset_key(self, slot):
+        size = tuple(round(float(value), 4) for value in slot["size"])
+        return "{}_{}".format(slot["type"], size)
+
+    def _actor_name(self, slot, actor_slot):
+        names = {
+            "moving_hurdle": "dynamic_hurdle",
+            "shifting_gap": "dynamic_gap_edge",
+            "changing_step_height": "dynamic_step",
+            "time_varying_ramp": "dynamic_ramp",
+        }
+        return "{}_{}".format(names[slot["type"]], actor_slot)
+
+    def _num_obstacles_for_mode(self):
+        if self.use_suites:
+            if self.cfg.layout_randomization:
+                return max_suite_actor_count(self.cfg.suite)
+            return layout_actor_count(self.suite_layouts[int(self.cfg.layout_id)])
+        return self._primitive_actor_count(self.cfg.type)
+
+    def _primitive_actor_count(self, obstacle_type):
         if obstacle_type == "shifting_gap":
             return 2
         if obstacle_type in (
@@ -399,87 +670,36 @@ class DynamicObstacleManager:
     def _asset_density(self):
         return float(getattr(self.cfg, "asset_density", self.cfg.hurdle_asset_density))
 
-    def _motion_axis_id(self):
-        if self.cfg.type == "changing_step_height":
+    def _axis_id(self, axis):
+        axis_ids = {"x": 0, "y": 1, "z": 2, "pitch": 1}
+        if axis not in axis_ids:
+            raise ValueError("unknown dynamic obstacle axis '{}'".format(axis))
+        return axis_ids[axis]
+
+    def _slot_axis_id(self, slot):
+        if slot["type"] == "changing_step_height":
             return 2
-        if self.cfg.type == "time_varying_ramp":
+        if slot["type"] == "time_varying_ramp":
             return 1
-        axis_name = "gap_motion_axis" if self.cfg.type == "shifting_gap" else "motion_axis"
-        return 0 if getattr(self.cfg, axis_name) == "x" else 1
+        return self._axis_id(slot["motion_axis"])
 
-    def _validate_ranges(self, amplitude_name, frequency_name, phase_name):
-        for name in [amplitude_name, frequency_name, phase_name]:
-            value = getattr(self.cfg, name)
-            if len(value) != 2:
-                raise ValueError("dynamic_obstacles.{} must have two values".format(name))
-            if value[0] > value[1]:
-                raise ValueError(
-                    "dynamic_obstacles.{} lower bound must be <= upper bound".format(name)
-                )
-        if getattr(self.cfg, frequency_name)[0] < 0:
-            raise ValueError(
-                "dynamic_obstacles.{} must be non-negative".format(frequency_name)
-            )
-
-    def _validate_positive(self, *names):
-        for name in names:
-            if getattr(self.cfg, name) <= 0:
-                raise ValueError("dynamic_obstacles.{} must be positive".format(name))
-
-    def _validate_axis(self, name):
-        if getattr(self.cfg, name) not in ["x", "y"]:
-            raise ValueError("dynamic_obstacles.{} must be 'x' or 'y'".format(name))
-
-    def _motion_range_names(self):
-        if self.cfg.type == "moving_hurdle":
-            return "amplitude_range", "frequency_range", "phase_range"
-        if self.cfg.type == "shifting_gap":
-            return "gap_amplitude_range", "gap_frequency_range", "gap_phase_range"
-        if self.cfg.type == "changing_step_height":
-            return (
-                "step_height_amplitude_range",
-                "step_frequency_range",
-                "step_phase_range",
-            )
-        if self.cfg.type == "time_varying_ramp":
-            return (
-                "ramp_pitch_amplitude_range",
-                "ramp_frequency_range",
-                "ramp_phase_range",
-            )
-        raise ValueError(
-            "Unknown dynamic obstacle type '{}'. Supported types are {}.".format(
-                self.cfg.type, self.SUPPORTED_TYPES
-            )
+    def _actor_type_mask(self, env_ids, actor_type):
+        mask = torch.zeros(
+            len(env_ids),
+            self.num_obstacles_per_env,
+            dtype=torch.bool,
+            device=self.device,
         )
+        for local_id, env_id in enumerate(env_ids.tolist()):
+            for actor_slot, slot_type in enumerate(self.actor_type_names[env_id]):
+                mask[local_id, actor_slot] = slot_type == actor_type
+        return mask
 
-    def _sample_motion_parameters(self, env_ids):
-        amplitude_name, frequency_name, phase_name = self._motion_range_names()
-        shape = (len(env_ids), self.num_obstacles_per_env)
-        shared_shape = (len(env_ids), 1)
-
-        if self.cfg.randomize_on_reset:
-            amplitude = self._uniform(getattr(self.cfg, amplitude_name), shared_shape)
-            frequency = self._uniform(getattr(self.cfg, frequency_name), shared_shape)
-            phase = self._uniform(getattr(self.cfg, phase_name), shared_shape)
-        else:
-            amplitude = torch.full(
-                shared_shape,
-                sum(getattr(self.cfg, amplitude_name)) / 2.0,
-                dtype=torch.float,
-                device=self.device,
-            )
-            frequency = torch.full(
-                shared_shape,
-                sum(getattr(self.cfg, frequency_name)) / 2.0,
-                dtype=torch.float,
-                device=self.device,
-            )
-            phase = torch.zeros(shared_shape, dtype=torch.float, device=self.device)
-
-        self.amplitudes[env_ids] = amplitude.expand(shape)
-        self.frequencies[env_ids] = frequency.expand(shape)
-        self.phases[env_ids] = phase.expand(shape)
+    def _uniform(self, value_range, shape):
+        low, high = value_range
+        return torch.empty(shape, dtype=torch.float, device=self.device).uniform_(
+            float(low), float(high)
+        )
 
     def _fixed_orientation(self, env_ids):
         orientations = torch.zeros(
@@ -499,10 +719,14 @@ class DynamicObstacleManager:
         )
         return orientations, angular_velocities
 
-    def _base_position(self, env_origin, x, y, z):
+    def _base_position(self, env_origin, local_position):
         origin = env_origin.detach().cpu() if torch.is_tensor(env_origin) else env_origin
         return torch.tensor(
-            [float(origin[0]) + x, float(origin[1]) + y, float(origin[2]) + z],
+            [
+                float(origin[0]) + float(local_position[0]),
+                float(origin[1]) + float(local_position[1]),
+                float(origin[2]) + float(local_position[2]),
+            ],
             dtype=torch.float,
             device=self.device,
         )
@@ -521,105 +745,10 @@ class DynamicObstacleManager:
             )
         return pose
 
-    def _collision_filter(self):
-        # Isaac Gym collision filters are bitmasks. The enabled path uses zero
-        # to allow normal same-env collision; the disabled-collision path is a
-        # best-effort scaffold for later validation in the viewer.
+    def _collision_filter(self, active=True):
+        if not active:
+            return 1
         return 0 if self.cfg.collision_enabled else 1
-
-    def _create_actor(self, env_handle, env_id, actor_slot, asset, name, pose):
-        handle = self.gym.create_actor(
-            env_handle,
-            asset,
-            pose,
-            name,
-            env_id,
-            self._collision_filter(),
-            0,
-        )
-        actor_index = self.gym.get_actor_index(env_handle, handle, gymapi.DOMAIN_SIM)
-        self.actor_handles[env_id].append(handle)
-        self.actor_indices[env_id, actor_slot] = actor_index
-        return handle
-
-    def _create_moving_hurdle(self, env_handle, env_id, env_origin):
-        base_position = self._base_position(
-            env_origin,
-            self.cfg.base_position_x,
-            self.cfg.base_position_y,
-            self.cfg.base_position_z,
-        )
-        self.base_positions[env_id, 0] = base_position
-        self.current_positions[env_id, 0] = base_position
-        self._create_actor(
-            env_handle,
-            env_id,
-            0,
-            self.assets["moving_hurdle"],
-            "dynamic_hurdle",
-            self._pose_from_position(base_position),
-        )
-
-    def _create_shifting_gap(self, env_handle, env_id, env_origin):
-        base_position = self._base_position(
-            env_origin,
-            self.cfg.gap_base_position_x,
-            self.cfg.gap_base_position_y,
-            self.cfg.gap_base_position_z,
-        )
-        edge_offset = 0.5 * self.cfg.gap_edge_separation
-        offsets = [-edge_offset, edge_offset]
-        for actor_slot, offset in enumerate(offsets):
-            position = base_position.clone()
-            position[self.axis_id] += offset
-            self.base_positions[env_id, actor_slot] = position
-            self.current_positions[env_id, actor_slot] = position
-            self._create_actor(
-                env_handle,
-                env_id,
-                actor_slot,
-                self.assets["shifting_gap_edge"],
-                "dynamic_gap_edge_{}".format(actor_slot),
-                self._pose_from_position(position),
-            )
-
-    def _create_changing_step_height(self, env_handle, env_id, env_origin):
-        base_position = self._base_position(
-            env_origin,
-            self.cfg.step_base_position_x,
-            self.cfg.step_base_position_y,
-            self.cfg.step_base_position_z,
-        )
-        self.base_positions[env_id, 0] = base_position
-        self.current_positions[env_id, 0] = base_position
-        self._create_actor(
-            env_handle,
-            env_id,
-            0,
-            self.assets["changing_step_height"],
-            "dynamic_step",
-            self._pose_from_position(base_position),
-        )
-
-    def _create_time_varying_ramp(self, env_handle, env_id, env_origin):
-        base_position = self._base_position(
-            env_origin,
-            self.cfg.ramp_base_position_x,
-            self.cfg.ramp_base_position_y,
-            self.cfg.ramp_base_position_z,
-        )
-        orientation = self._pitch_quat(float(self.cfg.ramp_base_pitch))
-        self.base_positions[env_id, 0] = base_position
-        self.current_positions[env_id, 0] = base_position
-        self.current_orientations[env_id, 0] = orientation
-        self._create_actor(
-            env_handle,
-            env_id,
-            0,
-            self.assets["time_varying_ramp"],
-            "dynamic_ramp",
-            self._pose_from_position(base_position, orientation),
-        )
 
     def _pitch_quat(self, pitch):
         half_pitch = 0.5 * pitch
@@ -630,22 +759,30 @@ class DynamicObstacleManager:
         )
 
     def _update_type_specific_state(self, env_ids):
-        self.current_offsets[env_ids] = (
-            self.current_positions[env_ids] - self.base_positions[env_ids]
-        )[:, :, self.axis_id]
-        self.current_step_heights[env_ids] = (
-            self.current_positions[env_ids, :, 2] + 0.5 * self.cfg.step_height
-            if self.cfg.type == "changing_step_height"
-            else 0.0
-        )
-        self.current_ramp_angles[env_ids] = (
-            2.0 * torch.atan2(
+        delta = self.current_positions[env_ids] - self.base_positions[env_ids]
+        current_offsets = torch.zeros_like(self.current_offsets[env_ids])
+        for axis_id in [0, 1, 2]:
+            mask = self.axis_ids[env_ids] == axis_id
+            current_offsets[mask] = delta[:, :, axis_id][mask]
+        self.current_offsets[env_ids] = current_offsets
+
+        step_mask = self._actor_type_mask(env_ids, "changing_step_height")
+        ramp_mask = self._actor_type_mask(env_ids, "time_varying_ramp")
+
+        current_step_heights = torch.zeros_like(self.current_step_heights[env_ids])
+        if torch.any(step_mask):
+            heights = self.current_positions[env_ids, :, 2] + 0.5 * self.step_heights[env_ids]
+            current_step_heights[step_mask] = heights[step_mask]
+        self.current_step_heights[env_ids] = current_step_heights
+
+        current_ramp_angles = torch.zeros_like(self.current_ramp_angles[env_ids])
+        if torch.any(ramp_mask):
+            ramp_angles = 2.0 * torch.atan2(
                 self.current_orientations[env_ids, :, 1],
                 self.current_orientations[env_ids, :, 3],
             )
-            if self.cfg.type == "time_varying_ramp"
-            else 0.0
-        )
+            current_ramp_angles[ramp_mask] = ramp_angles[ramp_mask]
+        self.current_ramp_angles[env_ids] = current_ramp_angles
 
 
 class MovingHurdleObstacle:
