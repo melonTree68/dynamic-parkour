@@ -33,3 +33,9 @@ suites:
 This preserves primitive mode, suite mode, and the disabled-by-default dynamic
 obstacle configuration while making the atlas read more like the original
 course-based terrain design.
+
+The follow-up micro-revision further densifies the course layouts most visible
+in the atlas: `pure_gap` now progresses from one platform gap to repeated
+multi-gap courses, `pure_ramp` progresses from one long ramp to multi-ramp
+sequences, and the hardest mixed layout combines hurdle, gap, step, and ramp
+sequences into one longer short-course segment.

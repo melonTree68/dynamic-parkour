@@ -103,9 +103,11 @@ Metadata: runup=0.9, runout=1.3, corridor_half_width=0.7
 
 | obstacle | type | base_position | size | motion |
 |---|---|---|---|---|
-| `platform_entry_step` | `changing_step_height` | `[1.45, 0.0, 0.12]` | `[0.55, 1.15, 0.12]` | `axis=z, amp=[0.02, 0.08], freq=[0.08, 0.22]` |
-| `platform_mid_step` | `changing_step_height` | `[2.15, 0.0, 0.22]` | `[0.75, 1.15, 0.22]` | `axis=z, amp=[0.02, 0.09], freq=[0.06, 0.22]` |
-| `platform_exit_step` | `changing_step_height` | `[3.0, 0.0, 0.3]` | `[0.78, 1.15, 0.3]` | `axis=z, amp=[0.03, 0.1], freq=[0.08, 0.25]` |
+| `platform_entry_step` | `changing_step_height` | `[1.3, 0.0, 0.12]` | `[0.5, 1.15, 0.12]` | `axis=z, amp=[0.02, 0.08], freq=[0.08, 0.22]` |
+| `platform_riser_step` | `changing_step_height` | `[1.9, 0.0, 0.18]` | `[0.56, 1.15, 0.18]` | `axis=z, amp=[0.02, 0.09], freq=[0.06, 0.22]` |
+| `platform_mid_step` | `changing_step_height` | `[2.55, 0.0, 0.24]` | `[0.62, 1.15, 0.24]` | `axis=z, amp=[0.02, 0.09], freq=[0.06, 0.22]` |
+| `platform_high_step` | `changing_step_height` | `[3.25, 0.0, 0.3]` | `[0.68, 1.15, 0.3]` | `axis=z, amp=[0.03, 0.1], freq=[0.08, 0.25]` |
+| `platform_runout_step` | `changing_step_height` | `[4.05, 0.0, 0.22]` | `[0.7, 1.15, 0.22]` | `axis=z, amp=[0.02, 0.08], freq=[0.06, 0.22]` |
 
 ## pure_gap
 
@@ -127,7 +129,8 @@ Metadata: runup=1.0, runout=1.25, corridor_half_width=0.68
 
 | obstacle | type | base_position | size | motion |
 |---|---|---|---|---|
-| `medium_platform_gap` | `shifting_gap` | `[2.35, 0.0, 0.1]` | `[0.6, 1.2, 0.1]` | `axis=x, amp=[0.04, 0.14], freq=[0.05, 0.18]` |
+| `medium_gap_entry` | `shifting_gap` | `[1.75, -0.08, 0.1]` | `[0.56, 1.05, 0.1]` | `axis=x, amp=[0.04, 0.12], freq=[0.05, 0.18]` |
+| `medium_gap_exit` | `shifting_gap` | `[3.05, 0.08, 0.1]` | `[0.58, 1.05, 0.1]` | `axis=x, amp=[0.04, 0.14], freq=[0.05, 0.18]` |
 
 ### Layout 2: `wide_platform_gap` (hard)
 
@@ -137,18 +140,22 @@ Metadata: runup=1.0, runout=1.35, corridor_half_width=0.7
 
 | obstacle | type | base_position | size | motion |
 |---|---|---|---|---|
-| `wide_platform_gap` | `shifting_gap` | `[2.55, 0.0, 0.1]` | `[0.8, 1.2, 0.1]` | `axis=x, amp=[0.05, 0.15], freq=[0.04, 0.16]` |
+| `wide_gap_entry` | `shifting_gap` | `[1.55, 0.0, 0.1]` | `[0.56, 1.08, 0.1]` | `axis=x, amp=[0.04, 0.12], freq=[0.04, 0.16]` |
+| `wide_gap_mid` | `shifting_gap` | `[2.85, 0.0, 0.1]` | `[0.62, 1.12, 0.1]` | `axis=x, amp=[0.04, 0.13], freq=[0.04, 0.16]` |
+| `wide_gap_exit` | `shifting_gap` | `[4.3, 0.0, 0.1]` | `[0.7, 1.14, 0.1]` | `axis=x, amp=[0.05, 0.15], freq=[0.04, 0.16]` |
 
 ### Layout 3: `repeated_staggered_gaps` (hardest)
 
 ![pure_gap layout 3](pure_gap_layout_3.png)
 
-Metadata: runup=0.9, runout=1.3, corridor_half_width=0.72
+Metadata: runup=0.9, runout=1.3, corridor_half_width=0.76
 
 | obstacle | type | base_position | size | motion |
 |---|---|---|---|---|
-| `double_gap_entry` | `shifting_gap` | `[1.55, -0.22, 0.1]` | `[0.52, 0.95, 0.1]` | `axis=x, amp=[0.04, 0.12], freq=[0.05, 0.18]` |
-| `double_gap_exit` | `shifting_gap` | `[3.05, 0.22, 0.1]` | `[0.55, 0.95, 0.1]` | `axis=x, amp=[0.04, 0.12], freq=[0.05, 0.22]` |
+| `staggered_gap_1` | `shifting_gap` | `[1.35, -0.22, 0.1]` | `[0.52, 0.95, 0.1]` | `axis=x, amp=[0.04, 0.12], freq=[0.05, 0.18]` |
+| `staggered_gap_2` | `shifting_gap` | `[2.45, 0.22, 0.1]` | `[0.55, 0.95, 0.1]` | `axis=x, amp=[0.04, 0.12], freq=[0.05, 0.2]` |
+| `staggered_gap_3` | `shifting_gap` | `[3.65, -0.18, 0.1]` | `[0.58, 0.98, 0.1]` | `axis=x, amp=[0.04, 0.13], freq=[0.05, 0.22]` |
+| `staggered_gap_4` | `shifting_gap` | `[4.95, 0.18, 0.1]` | `[0.6, 1.0, 0.1]` | `axis=x, amp=[0.04, 0.14], freq=[0.05, 0.22]` |
 
 ## pure_ramp
 
@@ -162,7 +169,7 @@ Metadata: runup=1.0, runout=1.2, corridor_half_width=0.65
 |---|---|---|---|---|
 | `ramp_soft` | `time_varying_ramp` | `[2.0, 0.0, 0.12]` | `[1.35, 1.15, 0.045]` | `axis=pitch, amp=[0.03, 0.1], freq=[0.05, 0.18]` |
 
-### Layout 1: `steep_ramp_course` (medium)
+### Layout 1: `two_ramp_sequence` (medium)
 
 ![pure_ramp layout 1](pure_ramp_layout_1.png)
 
@@ -170,9 +177,10 @@ Metadata: runup=0.95, runout=1.25, corridor_half_width=0.65
 
 | obstacle | type | base_position | size | motion |
 |---|---|---|---|---|
-| `ramp_steep` | `time_varying_ramp` | `[2.4, 0.0, 0.14]` | `[1.55, 1.15, 0.045]` | `axis=pitch, amp=[0.06, 0.18], freq=[0.08, 0.25]` |
+| `ramp_sequence_up` | `time_varying_ramp` | `[1.75, 0.0, 0.14]` | `[1.35, 1.15, 0.045]` | `axis=pitch, amp=[0.04, 0.14], freq=[0.08, 0.25]` |
+| `ramp_sequence_steep` | `time_varying_ramp` | `[3.15, 0.0, 0.14]` | `[1.45, 1.15, 0.045]` | `axis=pitch, amp=[0.05, 0.16], freq=[0.08, 0.25]` |
 
-### Layout 2: `reverse_down_ramp_course` (hard)
+### Layout 2: `up_down_ramp_sequence` (hard)
 
 ![pure_ramp layout 2](pure_ramp_layout_2.png)
 
@@ -180,7 +188,9 @@ Metadata: runup=0.95, runout=1.25, corridor_half_width=0.65
 
 | obstacle | type | base_position | size | motion |
 |---|---|---|---|---|
-| `ramp_reverse` | `time_varying_ramp` | `[2.3, 0.0, 0.12]` | `[1.5, 1.15, 0.045]` | `axis=pitch, amp=[0.04, 0.14], freq=[0.05, 0.2]` |
+| `hard_ramp_up` | `time_varying_ramp` | `[1.55, 0.0, 0.12]` | `[1.3, 1.15, 0.045]` | `axis=pitch, amp=[0.04, 0.13], freq=[0.05, 0.2]` |
+| `hard_ramp_down` | `time_varying_ramp` | `[2.85, 0.0, 0.12]` | `[1.35, 1.15, 0.045]` | `axis=pitch, amp=[0.04, 0.14], freq=[0.05, 0.2]` |
+| `hard_ramp_exit` | `time_varying_ramp` | `[4.2, 0.0, 0.12]` | `[1.3, 1.15, 0.045]` | `axis=pitch, amp=[0.04, 0.14], freq=[0.05, 0.2]` |
 
 ### Layout 3: `tilted_ramp_pair_course` (hardest)
 
@@ -190,12 +200,14 @@ Metadata: runup=0.9, runout=1.35, corridor_half_width=0.72
 
 | obstacle | type | base_position | size | motion |
 |---|---|---|---|---|
-| `ramp_pair_up` | `time_varying_ramp` | `[1.75, -0.18, 0.12]` | `[1.25, 1.1, 0.045]` | `axis=pitch, amp=[0.03, 0.12], freq=[0.06, 0.2]` |
-| `ramp_pair_down` | `time_varying_ramp` | `[3.05, 0.18, 0.12]` | `[1.25, 1.1, 0.045]` | `axis=pitch, amp=[0.04, 0.14], freq=[0.06, 0.22]` |
+| `ramp_pair_up` | `time_varying_ramp` | `[1.35, -0.18, 0.12]` | `[1.25, 1.1, 0.045]` | `axis=pitch, amp=[0.03, 0.12], freq=[0.06, 0.2]` |
+| `ramp_pair_down` | `time_varying_ramp` | `[2.55, 0.18, 0.12]` | `[1.25, 1.1, 0.045]` | `axis=pitch, amp=[0.04, 0.14], freq=[0.06, 0.22]` |
+| `ramp_pair_offset_up` | `time_varying_ramp` | `[3.75, -0.16, 0.12]` | `[1.25, 1.1, 0.045]` | `axis=pitch, amp=[0.04, 0.14], freq=[0.06, 0.22]` |
+| `ramp_pair_final_down` | `time_varying_ramp` | `[4.95, 0.14, 0.12]` | `[1.25, 1.1, 0.045]` | `axis=pitch, amp=[0.04, 0.14], freq=[0.06, 0.22]` |
 
 ## mixed
 
-### Layout 0: `hurdle_step_ramp_course` (medium)
+### Layout 0: `mixed_basic` (medium)
 
 ![mixed layout 0](mixed_layout_0.png)
 
@@ -207,7 +219,7 @@ Metadata: runup=0.95, runout=1.25, corridor_half_width=0.7
 | `mixed_step_mid` | `changing_step_height` | `[2.3, 0.0, 0.18]` | `[0.62, 1.1, 0.18]` | `axis=z, amp=[0.02, 0.08], freq=[0.06, 0.2]` |
 | `mixed_ramp_exit` | `time_varying_ramp` | `[3.55, 0.0, 0.12]` | `[1.3, 1.1, 0.045]` | `axis=pitch, amp=[0.03, 0.12], freq=[0.06, 0.22]` |
 
-### Layout 1: `gap_landing_step_ramp_course` (hard)
+### Layout 1: `mixed_gap_course` (hard)
 
 ![mixed layout 1](mixed_layout_1.png)
 
@@ -215,20 +227,26 @@ Metadata: runup=0.95, runout=1.3, corridor_half_width=0.7
 
 | obstacle | type | base_position | size | motion |
 |---|---|---|---|---|
-| `course_takeoff_gap` | `shifting_gap` | `[1.6, 0.0, 0.1]` | `[0.52, 1.1, 0.1]` | `axis=x, amp=[0.04, 0.12], freq=[0.05, 0.18]` |
-| `course_landing_step` | `changing_step_height` | `[2.95, 0.0, 0.2]` | `[0.6, 1.1, 0.18]` | `axis=z, amp=[0.02, 0.09], freq=[0.06, 0.22]` |
-| `course_exit_ramp` | `time_varying_ramp` | `[4.2, 0.0, 0.12]` | `[1.3, 1.1, 0.045]` | `axis=pitch, amp=[0.04, 0.14], freq=[0.06, 0.22]` |
+| `gap_course_hurdle` | `moving_hurdle` | `[1.05, 0.0, 0.31]` | `[0.1, 1.05, 0.31]` | `axis=y, amp=[0.06, 0.16], freq=[0.08, 0.22]` |
+| `gap_course_entry_gap` | `shifting_gap` | `[2.05, -0.08, 0.1]` | `[0.52, 1.0, 0.1]` | `axis=x, amp=[0.04, 0.12], freq=[0.05, 0.18]` |
+| `gap_course_exit_gap` | `shifting_gap` | `[3.15, 0.08, 0.1]` | `[0.55, 1.0, 0.1]` | `axis=x, amp=[0.04, 0.12], freq=[0.05, 0.18]` |
+| `course_landing_step` | `changing_step_height` | `[4.25, 0.0, 0.2]` | `[0.6, 1.1, 0.18]` | `axis=z, amp=[0.02, 0.09], freq=[0.06, 0.22]` |
+| `course_exit_ramp` | `time_varying_ramp` | `[5.45, 0.0, 0.12]` | `[1.3, 1.1, 0.045]` | `axis=pitch, amp=[0.04, 0.14], freq=[0.06, 0.22]` |
 
-### Layout 2: `hurdle_gap_staircase_ramp_course` (hardest)
+### Layout 2: `mixed_full_course` (hardest)
 
 ![mixed layout 2](mixed_layout_2.png)
 
-Metadata: runup=0.9, runout=1.35, corridor_half_width=0.74
+Metadata: runup=0.9, runout=1.35, corridor_half_width=0.76
 
 | obstacle | type | base_position | size | motion |
 |---|---|---|---|---|
-| `full_course_hurdle` | `moving_hurdle` | `[1.1, 0.0, 0.32]` | `[0.1, 1.05, 0.3]` | `axis=y, amp=[0.06, 0.18], freq=[0.08, 0.24]` |
-| `full_course_gap` | `shifting_gap` | `[2.25, 0.0, 0.1]` | `[0.5, 1.08, 0.1]` | `axis=x, amp=[0.04, 0.14], freq=[0.05, 0.18]` |
-| `full_course_stair_1` | `changing_step_height` | `[3.25, -0.16, 0.14]` | `[0.52, 0.82, 0.14]` | `axis=z, amp=[0.02, 0.09], freq=[0.06, 0.22]` |
-| `full_course_stair_2` | `changing_step_height` | `[3.85, 0.16, 0.24]` | `[0.56, 0.82, 0.24]` | `axis=z, amp=[0.02, 0.09], freq=[0.06, 0.22]` |
-| `full_course_ramp` | `time_varying_ramp` | `[5.05, 0.0, 0.12]` | `[1.3, 1.08, 0.045]` | `axis=pitch, amp=[0.03, 0.12], freq=[0.05, 0.2]` |
+| `full_course_hurdle_1` | `moving_hurdle` | `[1.1, 0.0, 0.32]` | `[0.1, 1.05, 0.3]` | `axis=y, amp=[0.06, 0.18], freq=[0.08, 0.24]` |
+| `full_course_hurdle_2` | `moving_hurdle` | `[1.8, -0.18, 0.34]` | `[0.1, 0.85, 0.34]` | `axis=y, amp=[0.06, 0.18], freq=[0.08, 0.24]` |
+| `full_course_gap_1` | `shifting_gap` | `[2.75, 0.16, 0.1]` | `[0.5, 0.98, 0.1]` | `axis=x, amp=[0.04, 0.14], freq=[0.05, 0.18]` |
+| `full_course_gap_2` | `shifting_gap` | `[3.9, -0.14, 0.1]` | `[0.54, 0.98, 0.1]` | `axis=x, amp=[0.04, 0.14], freq=[0.05, 0.18]` |
+| `full_course_stair_1` | `changing_step_height` | `[5.0, -0.16, 0.14]` | `[0.52, 0.82, 0.14]` | `axis=z, amp=[0.02, 0.09], freq=[0.06, 0.22]` |
+| `full_course_stair_2` | `changing_step_height` | `[5.6, 0.16, 0.24]` | `[0.56, 0.82, 0.24]` | `axis=z, amp=[0.02, 0.09], freq=[0.06, 0.22]` |
+| `full_course_stair_3` | `changing_step_height` | `[6.25, 0.0, 0.3]` | `[0.6, 1.02, 0.3]` | `axis=z, amp=[0.02, 0.09], freq=[0.06, 0.22]` |
+| `full_course_ramp_up` | `time_varying_ramp` | `[7.2, -0.1, 0.12]` | `[1.25, 1.08, 0.045]` | `axis=pitch, amp=[0.03, 0.12], freq=[0.05, 0.2]` |
+| `full_course_ramp_down` | `time_varying_ramp` | `[8.45, 0.1, 0.12]` | `[1.25, 1.08, 0.045]` | `axis=pitch, amp=[0.03, 0.12], freq=[0.05, 0.2]` |
