@@ -39,3 +39,9 @@ in the atlas: `pure_gap` now progresses from one platform gap to repeated
 multi-gap courses, `pure_ramp` progresses from one long ramp to multi-ramp
 sequences, and the hardest mixed layout combines hurdle, gap, step, and ramp
 sequences into one longer short-course segment.
+
+Each dynamic suite layout now also defines explicit local `goals` that follow
+the intended route through the actor course. The atlas renders these as ordered
+red waypoints, and the dynamic terrain viewer suppresses original static
+terrain goals by default in suite mode so those legacy markers do not conflict
+with the dynamic course path.

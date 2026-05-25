@@ -92,8 +92,45 @@ def ramp(
     }
 
 
+def _obstacle_x_extent(obstacle):
+    x, _y, _z = obstacle["base_position"]
+    length = obstacle["size"][0]
+    if obstacle["type"] == "shifting_gap":
+        half_x = 0.5 * obstacle["edge_separation"] + 0.5 * length
+    else:
+        half_x = 0.5 * length
+    return x - half_x, x + half_x
+
+
+def _default_goals(obstacles, runup_length, runout_length):
+    goals = [[0.45, 0.0]]
+    last_x = goals[0][0]
+
+    for obstacle in obstacles:
+        x, y, _z = obstacle["base_position"]
+        x0, x1 = _obstacle_x_extent(obstacle)
+        if obstacle["type"] == "shifting_gap":
+            goals.append([round(x0 - 0.10, 3), round(y, 3)])
+            goals.append([round(x1 + 0.10, 3), round(y, 3)])
+        else:
+            approach_x = max(last_x + 0.35, x0 - 0.20)
+            goals.append([round(approach_x, 3), round(y, 3)])
+            goals.append([round(x1 + 0.20, 3), round(y, 3)])
+        last_x = goals[-1][0]
+
+    final_x = max(last_x + 0.45, _obstacle_x_extent(obstacles[-1])[1] + runout_length)
+    goals.append([round(final_x, 3), 0.0])
+    return goals
+
+
 def course_layout(
-    name, difficulty, runup_length, runout_length, corridor_half_width, obstacles
+    name,
+    difficulty,
+    runup_length,
+    runout_length,
+    corridor_half_width,
+    obstacles,
+    goals=None,
 ):
     return {
         "name": name,
@@ -102,6 +139,11 @@ def course_layout(
         "runout_length": runout_length,
         "corridor_half_width": corridor_half_width,
         "obstacles": obstacles,
+        "goals": (
+            goals
+            if goals is not None
+            else _default_goals(obstacles, runup_length, runout_length)
+        ),
     }
 
 
@@ -515,7 +557,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 gap(
                     "medium_gap_exit",
-                    3.05,
+                    3.65,
                     0.08,
                     0.10,
                     "x",
@@ -552,7 +594,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 gap(
                     "wide_gap_mid",
-                    2.85,
+                    3.50,
                     0.0,
                     0.10,
                     "x",
@@ -566,7 +608,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 gap(
                     "wide_gap_exit",
-                    4.30,
+                    5.75,
                     0.0,
                     0.10,
                     "x",
@@ -603,7 +645,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 gap(
                     "staggered_gap_2",
-                    2.45,
+                    3.00,
                     0.22,
                     0.10,
                     "x",
@@ -617,7 +659,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 gap(
                     "staggered_gap_3",
-                    3.65,
+                    4.80,
                     -0.18,
                     0.10,
                     "x",
@@ -631,7 +673,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 gap(
                     "staggered_gap_4",
-                    4.95,
+                    6.80,
                     0.18,
                     0.10,
                     "x",
@@ -774,7 +816,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 ramp(
                     "ramp_pair_down",
-                    2.55,
+                    2.75,
                     0.18,
                     0.12,
                     [0.04, 0.14],
@@ -787,7 +829,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 ramp(
                     "ramp_pair_offset_up",
-                    3.75,
+                    4.15,
                     -0.16,
                     0.12,
                     [0.04, 0.14],
@@ -800,7 +842,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 ramp(
                     "ramp_pair_final_down",
-                    4.95,
+                    5.55,
                     0.14,
                     0.12,
                     [0.04, 0.14],
@@ -898,7 +940,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 gap(
                     "gap_course_exit_gap",
-                    3.15,
+                    3.80,
                     0.08,
                     0.10,
                     "x",
@@ -912,7 +954,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 step(
                     "course_landing_step",
-                    4.25,
+                    5.05,
                     0.0,
                     0.20,
                     [0.02, 0.09],
@@ -923,7 +965,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 ramp(
                     "course_exit_ramp",
-                    5.45,
+                    6.45,
                     0.0,
                     0.12,
                     [0.04, 0.14],
@@ -985,7 +1027,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 gap(
                     "full_course_gap_2",
-                    3.90,
+                    4.60,
                     -0.14,
                     0.10,
                     "x",
@@ -999,7 +1041,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 step(
                     "full_course_stair_1",
-                    5.00,
+                    5.85,
                     -0.16,
                     0.14,
                     [0.02, 0.09],
@@ -1011,7 +1053,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 step(
                     "full_course_stair_2",
-                    5.60,
+                    6.45,
                     0.16,
                     0.24,
                     [0.02, 0.09],
@@ -1023,7 +1065,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 step(
                     "full_course_stair_3",
-                    6.25,
+                    7.10,
                     0.0,
                     0.30,
                     [0.02, 0.09],
@@ -1035,7 +1077,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 ramp(
                     "full_course_ramp_up",
-                    7.20,
+                    8.20,
                     -0.10,
                     0.12,
                     [0.03, 0.12],
@@ -1048,7 +1090,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 ramp(
                     "full_course_ramp_down",
-                    8.45,
+                    9.60,
                     0.10,
                     0.12,
                     [0.03, 0.12],

@@ -6,6 +6,7 @@ to wandb, train, or evaluate.
 """
 
 import isaacgym  # noqa: F401
+from isaacgym import gymapi, gymutil
 
 from legged_gym.envs import *  # noqa: F401,F403
 from legged_gym.utils.dynamic_terrain_suites import DYNAMIC_TERRAIN_SUITES
@@ -13,7 +14,6 @@ from legged_gym.utils import task_registry
 from legged_gym.utils.helpers import parse_arguments
 
 import torch
-
 
 SUPPORTED_OBSTACLE_TYPES = (
     "moving_hurdle",
@@ -60,6 +60,21 @@ def get_args():
             "type": int,
             "default": 0,
             "help": "Print dynamic obstacle state every N steps.",
+        },
+        {
+            "name": "--draw_dynamic_goals",
+            "action": "store_true",
+            "help": "Draw dynamic suite layout goals in the viewer.",
+        },
+        {
+            "name": "--no_draw_original_goals",
+            "action": "store_true",
+            "help": "Suppress original static terrain goal debug drawing.",
+        },
+        {
+            "name": "--print_goals",
+            "action": "store_true",
+            "help": "Print dynamic suite layout goals before stepping.",
         },
         {
             "name": "--steps",
@@ -110,7 +125,74 @@ def list_suites():
     for suite_name, layouts in DYNAMIC_TERRAIN_SUITES.items():
         print("{}: {} layouts".format(suite_name, len(layouts)))
         for layout_id, layout in enumerate(layouts):
-            print("  {}: {}".format(layout_id, layout["name"]))
+            print(
+                "  {}: {} goals={}".format(
+                    layout_id, layout["name"], layout.get("goals", [])
+                )
+            )
+
+
+def selected_suite_layout(suite, layout_id):
+    if suite is None:
+        return None
+    layouts = DYNAMIC_TERRAIN_SUITES[suite]
+    if layout_id < 0 or layout_id >= len(layouts):
+        raise ValueError(
+            "layout_id {} is outside [0, {}) for suite {}".format(
+                layout_id, len(layouts), suite
+            )
+        )
+    return layouts[layout_id]
+
+
+def dynamic_goal_layout_for_env(env, fallback_layout):
+    if (
+        env.dynamic_obstacles is None
+        or not getattr(env.dynamic_obstacles, "use_suites", False)
+        or env.dynamic_obstacles.layout_ids is None
+    ):
+        return fallback_layout
+
+    layout_id = int(
+        env.dynamic_obstacles.layout_ids[env.lookat_id].detach().cpu().item()
+    )
+    if layout_id < 0:
+        return fallback_layout
+    return DYNAMIC_TERRAIN_SUITES[env.dynamic_obstacles.cfg.suite][layout_id]
+
+
+def print_layout_goals(layout):
+    if layout is None:
+        return
+    print("Dynamic suite layout goals for '{}':".format(layout["name"]))
+    for goal_id, goal in enumerate(layout.get("goals", [])):
+        print("  goal {}: {}".format(goal_id, goal))
+
+
+def draw_dynamic_goals(env, layout, clear_lines=False):
+    if layout is None or env.viewer is None:
+        return
+    if clear_lines:
+        env.gym.clear_lines(env.viewer)
+
+    goal_geom = gymutil.WireframeSphereGeometry(0.08, 16, 16, None, color=(1, 0, 0))
+    current_geom = gymutil.WireframeSphereGeometry(0.10, 16, 16, None, color=(0, 0, 1))
+    env_id = int(env.lookat_id)
+    origin = env.env_origins[env_id].detach().cpu().numpy()
+    current_goal_id = int(env.cur_goal_idx[env_id].detach().cpu().item())
+
+    for goal_id, goal in enumerate(layout.get("goals", [])):
+        local_z = float(goal[2]) if len(goal) > 2 else 0.12
+        pose = gymapi.Transform(
+            gymapi.Vec3(
+                float(origin[0]) + float(goal[0]),
+                float(origin[1]) + float(goal[1]),
+                float(origin[2]) + local_z,
+            ),
+            r=None,
+        )
+        geom = current_geom if goal_id == current_goal_id else goal_geom
+        gymutil.draw_lines(geom, env.gym, env.viewer, env.envs[env_id], pose)
 
 
 def configure_tiny_dynamic_env(
@@ -195,8 +277,14 @@ def main():
         max(2, args.rows),
         max(2, args.cols),
     )
+    selected_layout = selected_suite_layout(args.suite, args.layout_id)
 
     env, _ = task_registry.make_env(name=args.task, args=args, env_cfg=env_cfg)
+    suppress_original_goals = args.suite is not None or args.no_draw_original_goals
+    draw_dynamic_suite_goals = args.suite is not None or args.draw_dynamic_goals
+    if suppress_original_goals:
+        env.debug_viz = False
+
     actions = torch.zeros(
         env.num_envs,
         env.num_actions,
@@ -215,9 +303,18 @@ def main():
             target, args.steps
         )
     )
+    if args.suite is not None and suppress_original_goals:
+        print(
+            "Original static terrain goal drawing is disabled for dynamic suite view."
+        )
+    if args.print_goals or args.suite is not None:
+        print_layout_goals(selected_layout)
 
     for step_id in range(max(0, args.steps)):
         env.step(actions)
+        if draw_dynamic_suite_goals:
+            layout = dynamic_goal_layout_for_env(env, selected_layout)
+            draw_dynamic_goals(env, layout, clear_lines=suppress_original_goals)
         if (
             args.print_state_every > 0
             and env.dynamic_obstacles is not None

@@ -39,6 +39,19 @@ RGB_COLORS = {
     "time_varying_ramp": (148, 103, 189),
 }
 
+DIGIT_BITMAPS = {
+    "0": ["111", "101", "101", "101", "111"],
+    "1": ["010", "110", "010", "010", "111"],
+    "2": ["111", "001", "111", "100", "111"],
+    "3": ["111", "001", "111", "001", "111"],
+    "4": ["101", "101", "111", "001", "001"],
+    "5": ["111", "100", "111", "001", "111"],
+    "6": ["111", "100", "111", "101", "111"],
+    "7": ["111", "001", "010", "010", "010"],
+    "8": ["111", "101", "111", "101", "111"],
+    "9": ["111", "101", "111", "001", "111"],
+}
+
 
 def load_suites():
     spec = importlib.util.spec_from_file_location(
@@ -188,6 +201,9 @@ def layout_bounds(layout):
         half_y = width / 2.0
         xs.extend([x - half_x, x + half_x])
         ys.extend([y - half_y, y + half_y])
+    for goal in layout.get("goals", []):
+        xs.append(float(goal[0]))
+        ys.append(float(goal[1]))
     if layout.get("obstacles"):
         max_obstacle_x = max(
             obs.get("base_position", [0.0, 0.0, 0.0])[0]
@@ -291,6 +307,53 @@ class RasterCanvas:
             + chunk(b"IEND", b"")
         )
         path.write_bytes(png)
+
+
+def draw_raster_number(canvas, x, y, number, color=(200, 0, 0), scale=2):
+    cursor_x = int(round(x))
+    cursor_y = int(round(y))
+    for digit in str(number):
+        bitmap = DIGIT_BITMAPS.get(digit)
+        if bitmap is None:
+            cursor_x += 4 * scale
+            continue
+        for row_id, row in enumerate(bitmap):
+            for col_id, value in enumerate(row):
+                if value == "1":
+                    for oy in range(scale):
+                        for ox in range(scale):
+                            canvas.blend_pixel(
+                                cursor_x + col_id * scale + ox,
+                                cursor_y + row_id * scale + oy,
+                                color,
+                            )
+        cursor_x += 4 * scale
+
+
+def draw_raster_goals(canvas, transform, goals):
+    if not goals:
+        return
+    points = [transform(float(goal[0]), float(goal[1])) for goal in goals]
+    dash = 10
+    for start, end in zip(points[:-1], points[1:]):
+        dx = end[0] - start[0]
+        dy = end[1] - start[1]
+        dist = max(1.0, math.hypot(dx, dy))
+        steps = max(1, int(dist // dash))
+        for i in range(0, steps, 2):
+            a = i / steps
+            b = min(1.0, (i + 1) / steps)
+            canvas.line(
+                start[0] + dx * a,
+                start[1] + dy * a,
+                start[0] + dx * b,
+                start[1] + dy * b,
+                color=(210, 0, 0),
+                width=1,
+            )
+    for goal_id, point in enumerate(points):
+        canvas.circle(*point, radius=7, fill=(220, 0, 0))
+        draw_raster_number(canvas, point[0] + 8, point[1] - 13, goal_id, scale=2)
 
 
 def draw_raster_arrow(canvas, transform, obs, scale=0.45):
@@ -413,6 +476,7 @@ def draw_raster_layout(layout, out_path):
         canvas.rect(x0, y0, x1, y1, fill=color, outline=(0, 0, 0), alpha=0.55)
         draw_raster_arrow(canvas, transform, obs)
 
+    draw_raster_goals(canvas, transform, layout.get("goals", []))
     canvas.save_png(out_path)
 
 
@@ -459,6 +523,15 @@ def plot_layout(suite_name, layout_id, layout, out_path):
     for i, obs in enumerate(layout.get("obstacles", [])):
         draw_single_obstacle(ax, obs, i)
 
+    goals = layout.get("goals", [])
+    if goals:
+        goal_x = [float(goal[0]) for goal in goals]
+        goal_y = [float(goal[1]) for goal in goals]
+        ax.plot(goal_x, goal_y, linestyle="--", linewidth=1, color="red", alpha=0.8)
+        ax.scatter(goal_x, goal_y, marker="o", s=32, color="red", zorder=10)
+        for goal_id, (x, y) in enumerate(zip(goal_x, goal_y)):
+            ax.text(x + 0.04, y + 0.04, str(goal_id), fontsize=7, color="red")
+
     ax.set_xlim(x_left, x_right)
     ax.set_ylim(y_bottom, y_top)
     ax.set_aspect("equal", adjustable="box")
@@ -468,7 +541,7 @@ def plot_layout(suite_name, layout_id, layout, out_path):
     ax.text(
         4.75,
         -1.35,
-        "red=hurdle, blue=step, green=gap platforms, purple=ramp",
+        "red boxes=hurdle, red dots=goals, blue=step, green=gap, purple=ramp",
         ha="right",
         va="bottom",
         fontsize=7,
@@ -493,6 +566,7 @@ def write_markdown_index(suites, out_dir):
         "- Blue: changing step height",
         "- Green: shifting gap takeoff/landing platforms",
         "- Purple: time-varying ramp",
+        "- Red dots: dynamic suite goals",
         "",
     ]
 
@@ -513,6 +587,8 @@ def write_markdown_index(suites, out_dir):
                 f"runout={layout.get('runout_length', 'n/a')}, "
                 f"corridor_half_width={layout.get('corridor_half_width', 'n/a')}"
             )
+            lines.append("")
+            lines.append(f"Goals: `{layout.get('goals', [])}`")
             lines.append("")
             lines.append("| obstacle | type | base_position | size | motion |")
             lines.append("|---|---|---|---|---|")
