@@ -7,7 +7,6 @@ Isaac Gym simulation, PPO training, evaluation, or a viewer.
 from pathlib import Path
 import importlib.util
 
-
 ROOT = Path(__file__).resolve().parents[1]
 OBSTACLE_TYPES = (
     "moving_hurdle",
