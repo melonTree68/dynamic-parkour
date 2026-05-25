@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
@@ -39,6 +39,7 @@ from shutil import copyfile
 import torch
 import wandb
 
+
 def train(args):
     args.headless = True
     log_pth = LEGGED_GYM_ROOT_DIR + "/logs/{}/".format(args.proj_name) + args.exptid
@@ -53,18 +54,31 @@ def train(args):
         args.num_envs = 64
     else:
         mode = "online"
-    
+
     if args.no_wandb:
         mode = "disabled"
-    wandb.init(project=args.proj_name, name=args.exptid, entity="parkour", group=args.exptid[:3], mode=mode, dir="../../logs")
+    wandb.init(
+        project=args.proj_name,
+        name=args.exptid,
+        entity="parkour",
+        group=args.exptid[:3],
+        mode=mode,
+        dir="../../logs",
+    )
     wandb.save(LEGGED_GYM_ENVS_DIR + "/base/legged_robot_config.py", policy="now")
     wandb.save(LEGGED_GYM_ENVS_DIR + "/base/legged_robot.py", policy="now")
 
     env, env_cfg = task_registry.make_env(name=args.task, args=args)
-    ppo_runner, train_cfg = task_registry.make_alg_runner(log_root = log_pth, env=env, name=args.task, args=args)
-    ppo_runner.learn(num_learning_iterations=train_cfg.runner.max_iterations, init_at_random_ep_len=True)
+    ppo_runner, train_cfg = task_registry.make_alg_runner(
+        log_root=log_pth, env=env, name=args.task, args=args
+    )
+    ppo_runner.learn(
+        num_learning_iterations=train_cfg.runner.max_iterations,
+        init_at_random_ep_len=True,
+    )
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Log configs immediately
     args = get_args()
     train(args)

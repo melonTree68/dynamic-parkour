@@ -1,6 +1,6 @@
 # SPDX-FileCopyrightText: Copyright (c) 2021 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: BSD-3-Clause
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
 #
@@ -35,8 +35,9 @@ import numpy as np
 import torch
 import time
 
+
 # Base class for RL tasks
-class BaseTask():
+class BaseTask:
 
     def __init__(self, cfg, sim_params, physics_engine, sim_device, headless):
         self.gym = gymapi.acquire_gym()
@@ -48,10 +49,10 @@ class BaseTask():
         self.headless = headless
 
         # env device is GPU only if sim is on GPU and use_gpu_pipeline=True, otherwise returned tensors are copied to CPU by physX.
-        if sim_device_type=='cuda' and sim_params.use_gpu_pipeline:
+        if sim_device_type == "cuda" and sim_params.use_gpu_pipeline:
             self.device = self.sim_device
         else:
-            self.device = 'cpu'
+            self.device = "cpu"
 
         # graphics device for rendering, -1 for no rendering
         self.graphics_device_id = self.sim_device_id
@@ -62,20 +63,31 @@ class BaseTask():
         self.num_obs = cfg.env.num_observations
         self.num_privileged_obs = cfg.env.num_privileged_obs
         self.num_actions = cfg.env.num_actions
-        
+
         # optimization flags for pytorch JIT
         torch._C._jit_set_profiling_mode(False)
         torch._C._jit_set_profiling_executor(False)
 
         # allocate buffers
-        self.obs_buf = torch.zeros(self.num_envs, self.num_obs, device=self.device, dtype=torch.float)
+        self.obs_buf = torch.zeros(
+            self.num_envs, self.num_obs, device=self.device, dtype=torch.float
+        )
         self.rew_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.float)
         self.reset_buf = torch.ones(self.num_envs, device=self.device, dtype=torch.long)
-        self.episode_length_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.long)
-        self.time_out_buf = torch.zeros(self.num_envs, device=self.device, dtype=torch.bool)
+        self.episode_length_buf = torch.zeros(
+            self.num_envs, device=self.device, dtype=torch.long
+        )
+        self.time_out_buf = torch.zeros(
+            self.num_envs, device=self.device, dtype=torch.bool
+        )
         if self.num_privileged_obs is not None:
-            self.privileged_obs_buf = torch.zeros(self.num_envs, self.num_privileged_obs, device=self.device, dtype=torch.float)
-        else: 
+            self.privileged_obs_buf = torch.zeros(
+                self.num_envs,
+                self.num_privileged_obs,
+                device=self.device,
+                dtype=torch.float,
+            )
+        else:
             self.privileged_obs_buf = None
             # self.num_privileged_obs = self.num_obs
 
@@ -92,38 +104,50 @@ class BaseTask():
         # if running with a viewer, set up keyboard shortcuts and camera
         if self.headless == False:
             # subscribe to keyboard shortcuts
-            self.viewer = self.gym.create_viewer(
-                self.sim, gymapi.CameraProperties())
+            self.viewer = self.gym.create_viewer(self.sim, gymapi.CameraProperties())
             self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_ESCAPE, "QUIT")
+                self.viewer, gymapi.KEY_ESCAPE, "QUIT"
+            )
             self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_V, "toggle_viewer_sync")
+                self.viewer, gymapi.KEY_V, "toggle_viewer_sync"
+            )
             self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_F, "free_cam")
+                self.viewer, gymapi.KEY_F, "free_cam"
+            )
             for i in range(9):
                 self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, getattr(gymapi, "KEY_"+str(i)), "lookat"+str(i))
+                    self.viewer, getattr(gymapi, "KEY_" + str(i)), "lookat" + str(i)
+                )
             self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_LEFT_BRACKET, "prev_id")
+                self.viewer, gymapi.KEY_LEFT_BRACKET, "prev_id"
+            )
             self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_RIGHT_BRACKET, "next_id")
+                self.viewer, gymapi.KEY_RIGHT_BRACKET, "next_id"
+            )
             self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_SPACE, "pause")
+                self.viewer, gymapi.KEY_SPACE, "pause"
+            )
             self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_W, "vx_plus")
+                self.viewer, gymapi.KEY_W, "vx_plus"
+            )
             self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_S, "vx_minus")
+                self.viewer, gymapi.KEY_S, "vx_minus"
+            )
             self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_A, "left_turn")
+                self.viewer, gymapi.KEY_A, "left_turn"
+            )
             self.gym.subscribe_viewer_keyboard_event(
-                self.viewer, gymapi.KEY_D, "right_turn")
+                self.viewer, gymapi.KEY_D, "right_turn"
+            )
         self.free_cam = False
         self.lookat_id = 0
-        self.lookat_vec = torch.tensor([-0, 2, 1], requires_grad=False, device=self.device)
+        self.lookat_vec = torch.tensor(
+            [-0, 2, 1], requires_grad=False, device=self.device
+        )
 
     def get_observations(self):
         return self.obs_buf
-    
+
     def get_privileged_observations(self):
         return self.privileged_obs_buf
 
@@ -132,9 +156,13 @@ class BaseTask():
         raise NotImplementedError
 
     def reset(self):
-        """ Reset all robots"""
+        """Reset all robots"""
         self.reset_idx(torch.arange(self.num_envs, device=self.device))
-        obs, privileged_obs, _, _, _ = self.step(torch.zeros(self.num_envs, self.num_actions, device=self.device, requires_grad=False))
+        obs, privileged_obs, _, _, _ = self.step(
+            torch.zeros(
+                self.num_envs, self.num_actions, device=self.device, requires_grad=False
+            )
+        )
         return obs, privileged_obs
 
     def step(self, actions):
@@ -158,17 +186,17 @@ class BaseTask():
                     sys.exit()
                 elif evt.action == "toggle_viewer_sync" and evt.value > 0:
                     self.enable_viewer_sync = not self.enable_viewer_sync
-                
+
                 if not self.free_cam:
                     for i in range(9):
                         if evt.action == "lookat" + str(i) and evt.value > 0:
                             self.lookat(i)
                             self.lookat_id = i
                     if evt.action == "prev_id" and evt.value > 0:
-                        self.lookat_id  = (self.lookat_id-1) % self.num_envs
+                        self.lookat_id = (self.lookat_id - 1) % self.num_envs
                         self.lookat(self.lookat_id)
                     if evt.action == "next_id" and evt.value > 0:
-                        self.lookat_id  = (self.lookat_id+1) % self.num_envs
+                        self.lookat_id = (self.lookat_id + 1) % self.num_envs
                         self.lookat(self.lookat_id)
                     if evt.action == "vx_plus" and evt.value > 0:
                         self.commands[self.lookat_id, 0] += 0.2
@@ -182,7 +210,7 @@ class BaseTask():
                     self.free_cam = not self.free_cam
                     if self.free_cam:
                         self.set_camera(self.cfg.viewer.pos, self.cfg.viewer.lookat)
-                
+
                 if evt.action == "pause" and evt.value > 0:
                     self.pause = True
                     while self.pause:
@@ -194,10 +222,8 @@ class BaseTask():
                         if self.gym.query_viewer_has_closed(self.viewer):
                             sys.exit()
 
-                        
-                
             # fetch results
-            if self.device != 'cpu':
+            if self.device != "cpu":
                 self.gym.fetch_results(self.sim, True)
 
             self.gym.poll_viewer_events(self.viewer)
@@ -209,10 +235,11 @@ class BaseTask():
                     self.gym.sync_frame_time(self.sim)
             else:
                 self.gym.poll_viewer_events(self.viewer)
-            
+
             if not self.free_cam:
                 p = self.gym.get_viewer_camera_transform(self.viewer, None).p
-                cam_trans = torch.tensor([p.x, p.y, p.z], requires_grad=False, device=self.device)
+                cam_trans = torch.tensor(
+                    [p.x, p.y, p.z], requires_grad=False, device=self.device
+                )
                 look_at_pos = self.root_states[self.lookat_id, :3].clone()
                 self.lookat_vec = cam_trans - look_at_pos
-            
