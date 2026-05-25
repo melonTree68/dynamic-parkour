@@ -2,12 +2,12 @@
 
 This plan is for future validation after Isaac Gym is installed. It is not part of the current task to run these checks.
 
-Current blocker: Isaac Gym was not found locally under `/home/shiyixiao`, and no Isaac Gym archive was found. Download Isaac Gym Preview 4 manually from NVIDIA Developer, extract it to `/home/shiyixiao/isaacgym` or `/home/shiyixiao/RobotProject/extreme-parkour/isaacgym`, then install from the extracted `python/` directory inside `.venv-parkour`.
+Current setup note: use the prepared `parkour38` conda environment for local checks. If Isaac Gym is missing, download Isaac Gym Preview 4 manually from NVIDIA Developer, extract it to `/home/shiyixiao/isaacgym` or `/home/shiyixiao/RobotProject/extreme-parkour/isaacgym`, then install from the extracted `python/` directory inside the active environment.
 
 Before running viewer checks, first confirm import-level setup:
 
 ```bash
-source /home/shiyixiao/RobotProject/extreme-parkour/.venv-parkour/bin/activate
+conda activate parkour38
 python -c "import isaacgym; print('isaacgym ok')"
 python -c "from isaacgym import gymapi, gymtorch; print('gymapi/gymtorch ok')"
 python -c "import legged_gym; print('legged_gym ok')"
@@ -23,15 +23,32 @@ Suggested constraints:
 
 - Use a very small environment count, such as `num_envs = 1` or `num_envs = 4`.
 - Set `dynamic_obstacles.enable = True`.
-- Set `dynamic_obstacles.type = "moving_hurdle"`.
+- Set `dynamic_obstacles.type` to one of:
+  - `"moving_hurdle"`
+  - `"shifting_gap"`
+  - `"changing_step_height"`
+  - `"time_varying_ramp"`
 - Keep the original rewards, observations, and PPO code unchanged.
 - Do not run training.
 
+Preferred command path:
+
+```bash
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type moving_hurdle --steps 1000
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type shifting_gap --steps 1000
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type changing_step_height --steps 1000
+python legged_gym/legged_gym/scripts/view_dynamic_terrain.py --task a1 --obstacle_type time_varying_ramp --steps 1000
+```
+
+For WSL, run from Windows Terminal rather than the VS Code terminal, keep `num_envs = 1`, and do not run full training just to inspect terrain.
+
 Expected result:
 
-- One actor named `dynamic_hurdle` appears in each environment.
-- The hurdle is placed at `env_origin + [base_position_x, base_position_y, base_position_z]`.
-- The hurdle moves along the configured `motion_axis`.
+- The selected dynamic actor set appears in the environment.
+- For `moving_hurdle`, the hurdle is placed at `env_origin + [base_position_x, base_position_y, base_position_z]` and moves along the configured `motion_axis`.
+- For `shifting_gap`, two thin edge actors appear and move together along `gap_motion_axis`.
+- For `changing_step_height`, one step actor appears and moves along z.
+- For `time_varying_ramp`, one ramp box appears and changes pitch angle over time.
 - The static terrain mesh does not change.
 
 ## 2. Collision Check
@@ -41,7 +58,7 @@ Goal: verify that the moving hurdle can collide with the robot or a simple test 
 Suggested checks:
 
 - Start with one environment and a slow hurdle frequency.
-- Confirm the hurdle has a collision shape.
+- Confirm the selected dynamic actor has a collision shape.
 - Confirm `collision_enabled = True` produces contacts.
 - Separately check `collision_enabled = False` before relying on the filter behavior.
 
@@ -59,7 +76,10 @@ Suggested checks:
 - Inspect `DynamicObstacleManager.get_state()` before and after `reset(env_ids)`.
 - Confirm amplitude, frequency, and phase are resampled for reset envs.
 - Confirm non-reset envs keep their current sampled parameters.
-- Confirm z stays fixed for the MVP.
+- Confirm type-specific state is populated:
+  - `current_gap_offset` for `shifting_gap`
+  - `current_step_height` for `changing_step_height`
+  - `current_ramp_angle` for `time_varying_ramp`
 
 Expected result:
 
@@ -81,13 +101,27 @@ Expected result:
 - No dynamic obstacle actors are created.
 - `LeggedRobot.root_states` behavior matches the original one-actor-per-env layout.
 
-## 5. Future Training Check
+## 5. Static Design Check
+
+Goal: verify the scaffold remains statically consistent without running simulation.
+
+```bash
+python tools/check_terrain_design.py
+```
+
+Expected result:
+
+- All four obstacle type names are present in code, docs, and the viewer script.
+- The viewer imports Isaac Gym before torch.
+- The viewer does not create a PPO runner or wandb run.
+- Dynamic obstacles remain disabled by default.
+
+## 6. Future Training Check
 
 Training is not part of this task.
 
 Only after viewer, collision, reset, and static-baseline checks pass should future work consider:
 
 - exposing dynamic obstacle state to privileged observations,
-- adding shifting gaps / changing steps / time-varying ramps,
 - running small-scale smoke training,
 - then running full training comparisons.
