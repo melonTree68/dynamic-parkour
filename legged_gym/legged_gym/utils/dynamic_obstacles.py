@@ -46,13 +46,11 @@ class DynamicObstacleManager:
         self.identity_quat = torch.tensor(
             [0.0, 0.0, 0.0, 1.0], dtype=torch.float, device=device
         )
-        self.zero_ang_vel = torch.zeros(3, dtype=torch.float, device=device)
 
         self.suite_layouts = (
             get_suite_layouts(self.cfg.suite) if self.use_suites else None
         )
         self.num_obstacles_per_env = self._num_obstacles_for_mode()
-        self.actor_handles = [[] for _ in range(num_envs)]
         self.actor_indices = torch.full(
             (num_envs, self.num_obstacles_per_env),
             -1,
@@ -239,36 +237,13 @@ class DynamicObstacleManager:
         }
 
     def _compute_motion(self, env_ids, t):
-        if self.use_suites:
-            return self._update_suite_layout(env_ids, t)
-        if self.cfg.type == "moving_hurdle":
-            return self._update_moving_hurdle(env_ids, t)
-        if self.cfg.type == "shifting_gap":
-            return self._update_shifting_gap(env_ids, t)
-        if self.cfg.type == "changing_step_height":
-            return self._update_changing_step_height(env_ids, t)
-        if self.cfg.type == "time_varying_ramp":
-            return self._update_time_varying_ramp(env_ids, t)
+        if self.use_suites or self.cfg.type in self.SUPPORTED_TYPES:
+            return self._update_all_actor_slots(env_ids, t)
         raise ValueError(
             "Unknown dynamic obstacle type '{}'. Supported types are {}.".format(
                 self.cfg.type, self.SUPPORTED_TYPES
             )
         )
-
-    def _update_suite_layout(self, env_ids, t):
-        return self._update_all_actor_slots(env_ids, t)
-
-    def _update_moving_hurdle(self, env_ids, t):
-        return self._update_all_actor_slots(env_ids, t)
-
-    def _update_shifting_gap(self, env_ids, t):
-        return self._update_all_actor_slots(env_ids, t)
-
-    def _update_changing_step_height(self, env_ids, t):
-        return self._update_all_actor_slots(env_ids, t)
-
-    def _update_time_varying_ramp(self, env_ids, t):
-        return self._update_all_actor_slots(env_ids, t)
 
     def _update_all_actor_slots(self, env_ids, t):
         raw_offset, raw_velocity = self._compute_sinusoid(env_ids, t)
@@ -421,7 +396,7 @@ class DynamicObstacleManager:
                         obstacle_type, self.SUPPORTED_TYPES
                     )
                 )
-            if obstacle["actor_count"] != self._expected_actor_count(obstacle):
+            if obstacle["actor_count"] != self._primitive_actor_count(obstacle_type):
                 raise ValueError(
                     "layout obstacle '{}' has wrong actor_count".format(
                         obstacle.get("name", obstacle_type)
@@ -626,36 +601,6 @@ class DynamicObstacleManager:
         self.actor_type_names[env_id][actor_slot] = self.INACTIVE_TYPE
 
     def _sample_motion_parameters(self, env_ids):
-        if self.cfg.randomize_on_reset:
-            for env_id in env_ids.tolist():
-                group_ids = self.motion_group_ids[env_id]
-                type_motion = {}
-                for group_id in torch.unique(group_ids[group_ids >= 0]).tolist():
-                    mask = group_ids == group_id
-                    slot_index = int(torch.nonzero(mask, as_tuple=False)[0].item())
-                    slot = self.actor_slots_by_env[env_id][slot_index]
-                    slot_type = slot["type"]
-                    if slot_type not in type_motion:
-                        type_motion[slot_type] = {
-                            "amplitude": self._uniform(
-                                slot["amplitude_range"], (1,)
-                            ).item(),
-                            "frequency": self._uniform(
-                                slot["frequency_range"], (1,)
-                            ).item(),
-                        }
-                    amplitude = type_motion[slot_type]["amplitude"]
-                    frequency = type_motion[slot_type]["frequency"]
-                    phase = self._uniform(slot["phase_range"], (1,)).item()
-                    self.amplitudes[env_id, mask] = amplitude
-                    self.frequencies[env_id, mask] = frequency
-                    self.phases[env_id, mask] = phase
-                inactive_mask = group_ids < 0
-                self.amplitudes[env_id, inactive_mask] = 0.0
-                self.frequencies[env_id, inactive_mask] = 0.0
-                self.phases[env_id, inactive_mask] = 0.0
-            return
-
         for env_id in env_ids.tolist():
             group_ids = self.motion_group_ids[env_id]
             type_motion = {}
@@ -665,17 +610,21 @@ class DynamicObstacleManager:
                 slot = self.actor_slots_by_env[env_id][slot_index]
                 slot_type = slot["type"]
                 if slot_type not in type_motion:
-                    type_motion[slot_type] = {
-                        "amplitude": sum(slot["amplitude_range"]) / 2.0,
-                        "frequency": sum(slot["frequency_range"]) / 2.0,
-                    }
-                self.amplitudes[env_id, mask] = type_motion[slot_type]["amplitude"]
-                self.frequencies[env_id, mask] = type_motion[slot_type]["frequency"]
-                self.phases[env_id, mask] = sum(slot["phase_range"]) / 2.0
+                    type_motion[slot_type] = self._motion_parameters_for_slot(slot)
+                amplitude, frequency = type_motion[slot_type]
+                self.amplitudes[env_id, mask] = amplitude
+                self.frequencies[env_id, mask] = frequency
+                self.phases[env_id, mask] = self._range_value(slot["phase_range"])
             inactive_mask = group_ids < 0
             self.amplitudes[env_id, inactive_mask] = 0.0
             self.frequencies[env_id, inactive_mask] = 0.0
             self.phases[env_id, inactive_mask] = 0.0
+
+    def _motion_parameters_for_slot(self, slot):
+        return (
+            self._range_value(slot["amplitude_range"]),
+            self._range_value(slot["frequency_range"]),
+        )
 
     def _create_actor(self, env_handle, env_id, actor_slot, asset, name, pose, active):
         collision_filter = self._collision_filter(active)
@@ -689,7 +638,6 @@ class DynamicObstacleManager:
             0,
         )
         actor_index = self.gym.get_actor_index(env_handle, handle, gymapi.DOMAIN_SIM)
-        self.actor_handles[env_id].append(handle)
         self.actor_indices[env_id, actor_slot] = actor_index
         return handle
 
@@ -728,9 +676,6 @@ class DynamicObstacleManager:
             )
         )
 
-    def _expected_actor_count(self, obstacle):
-        return self._primitive_actor_count(obstacle["type"])
-
     def _asset_density(self):
         return float(getattr(self.cfg, "asset_density", self.cfg.hurdle_asset_density))
 
@@ -764,6 +709,11 @@ class DynamicObstacleManager:
         return torch.empty(shape, dtype=torch.float, device=self.device).uniform_(
             float(low), float(high)
         )
+
+    def _range_value(self, value_range):
+        if self.cfg.randomize_on_reset:
+            return self._uniform(value_range, (1,)).item()
+        return sum(value_range) / 2.0
 
     def _fixed_orientation(self, env_ids):
         orientations = torch.zeros(
@@ -858,19 +808,3 @@ class DynamicObstacleManager:
             )
             current_ramp_angles[ramp_mask] = ramp_angles[ramp_mask]
         self.current_ramp_angles[env_ids] = current_ramp_angles
-
-
-class MovingHurdleObstacle:
-    """Reserved name for a future per-obstacle implementation."""
-
-
-class ShiftingGapObstacle:
-    """Reserved name for a future per-obstacle implementation."""
-
-
-class ChangingStepObstacle:
-    """Reserved name for a future per-obstacle implementation."""
-
-
-class TimeVaryingRampObstacle:
-    """Reserved name for a future per-obstacle implementation."""
