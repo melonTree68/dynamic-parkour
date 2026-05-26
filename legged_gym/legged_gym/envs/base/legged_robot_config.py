@@ -230,6 +230,83 @@ class LeggedRobotCfg(BaseConfig):
 
         num_goals = 8
 
+    class dynamic_obstacles:
+        enable = False
+
+        # Primitive mode remains the default behavior. Suite mode organizes the
+        # same actor primitives into original-style single-skill and mixed
+        # layout groups, but is still disabled unless explicitly enabled.
+        type = "moving_hurdle"
+        use_suites = False
+        suite = "pure_hurdle"
+        layout_id = 0
+        layout_randomization = True
+
+        # Common dynamic obstacle settings. These are intentionally disabled by
+        # default so the original static parkour baseline is unchanged.
+        num_obstacles_per_env = 1
+        debug_draw = False
+        randomize_on_reset = True
+        asset_density = 1000.0
+
+        # Moving hurdle MVP. The box length is along x, thickness along y, and
+        # height along z.
+        hurdle_length = 1.0
+        hurdle_thickness = 0.08
+        hurdle_height = 0.35
+        hurdle_asset_density = 1000.0
+
+        base_position_x = 2.0
+        base_position_y = 0.0
+        base_position_z = 0.35
+
+        motion_axis = "y"
+        amplitude_range = [0.1, 0.4]
+        frequency_range = [0.1, 0.5]
+        phase_range = [0.0, 6.28318530718]
+
+        # Shifting gap MVP. Two thin edge actors move together so the apparent
+        # takeoff/landing boundaries shift without changing the static mesh.
+        gap_edge_length = 0.08
+        gap_edge_width = 1.0
+        gap_edge_height = 0.08
+        gap_edge_separation = 0.75
+        gap_base_position_x = 2.4
+        gap_base_position_y = 0.0
+        gap_base_position_z = 0.08
+        gap_motion_axis = "x"
+        gap_amplitude_range = [0.05, 0.25]
+        gap_frequency_range = [0.05, 0.3]
+        gap_phase_range = [0.0, 6.28318530718]
+
+        # Changing step height MVP. The step is a fixed-size box whose center
+        # z position changes over time.
+        step_length = 0.6
+        step_width = 1.0
+        step_height = 0.18
+        step_base_position_x = 2.4
+        step_base_position_y = 0.0
+        step_base_position_z = 0.18
+        step_height_amplitude_range = [0.03, 0.12]
+        step_frequency_range = [0.05, 0.25]
+        step_phase_range = [0.0, 6.28318530718]
+
+        # Time-varying ramp MVP. Isaac Gym receives a box actor whose pitch is
+        # updated through the root-state tensor.
+        ramp_length = 0.9
+        ramp_width = 1.0
+        ramp_thickness = 0.08
+        ramp_base_position_x = 2.4
+        ramp_base_position_y = 0.0
+        ramp_base_position_z = 0.12
+        ramp_base_pitch = 0.15
+        ramp_pitch_amplitude_range = [0.03, 0.18]
+        ramp_frequency_range = [0.05, 0.25]
+        ramp_phase_range = [0.0, 6.28318530718]
+
+        make_kinematic = True
+        collision_enabled = True
+
     class commands:
         curriculum = False
         max_curriculum = 1.0

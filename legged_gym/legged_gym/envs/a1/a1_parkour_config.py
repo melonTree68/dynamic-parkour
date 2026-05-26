@@ -77,3 +77,38 @@ class A1ParkourCfgPPO(LeggedRobotCfgPPO):
     class runner(LeggedRobotCfgPPO.runner):
         run_name = ""
         experiment_name = "rough_a1"
+
+
+class A1DynamicHurdleCfg(A1ParkourCfg):
+    class dynamic_obstacles(A1ParkourCfg.dynamic_obstacles):
+        enable = True
+        use_suites = True
+        suite = "pure_hurdle"
+
+
+class A1DynamicStepCfg(A1ParkourCfg):
+    class dynamic_obstacles(A1ParkourCfg.dynamic_obstacles):
+        enable = True
+        use_suites = True
+        suite = "pure_step"
+
+
+class A1DynamicGapCfg(A1ParkourCfg):
+    class dynamic_obstacles(A1ParkourCfg.dynamic_obstacles):
+        enable = True
+        use_suites = True
+        suite = "pure_gap"
+
+
+class A1DynamicRampCfg(A1ParkourCfg):
+    class dynamic_obstacles(A1ParkourCfg.dynamic_obstacles):
+        enable = True
+        use_suites = True
+        suite = "pure_ramp"
+
+
+class A1DynamicMixedCfg(A1ParkourCfg):
+    class dynamic_obstacles(A1ParkourCfg.dynamic_obstacles):
+        enable = True
+        use_suites = True
+        suite = "mixed"

@@ -2,6 +2,7 @@
 
 - This remote machine is a Linux machine with 1x RTX 3090 GPU. The machine has GUI. I have no `sudo` privilege on it.
 - This project uses conda env `parkour`. Use `conda run -n parkour` to run any Python scripts.
+- If Isaac Gym loading fails on `libpython3.8.so.1.0`, use `export LD_LIBRARY_PATH=/home/zhijie/apps/miniconda3/envs/parkour/lib`.
 
 ## Version Control
 

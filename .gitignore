@@ -1,7 +1,10 @@
 isaacgym*
 .ipynb_checkpoints/
 .vscode/
+__pycache__/
 *img
 
 /scripts/
 /plots/
+/utils/terrain_layout_atlas
+/utils/original_terrain_atlas

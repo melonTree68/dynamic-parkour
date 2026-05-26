@@ -44,6 +44,7 @@ from typing import Tuple, Dict
 from legged_gym import LEGGED_GYM_ROOT_DIR
 from legged_gym.envs.base.base_task import BaseTask
 from legged_gym.utils.terrain import Terrain
+from legged_gym.utils.dynamic_obstacles import DynamicObstacleManager
 from legged_gym.utils.math import *
 from legged_gym.utils.helpers import class_to_dict
 from scipy.spatial.transform import Rotation as R
@@ -159,6 +160,9 @@ class LeggedRobot(BaseTask):
         )
         self.actions = torch.clip(actions, -clip_actions, clip_actions).to(self.device)
         self.render()
+
+        if self.dynamic_obstacles is not None:
+            self.dynamic_obstacles.update(self.common_step_counter * self.dt)
 
         for _ in range(self.cfg.control.decimation):
             self.torques = self._compute_torques(self.actions).view(self.torques.shape)
@@ -396,6 +400,8 @@ class LeggedRobot(BaseTask):
         self._reset_dofs(env_ids)
         self._reset_root_states(env_ids)
         self._resample_commands(env_ids)
+        if self.dynamic_obstacles is not None:
+            self.dynamic_obstacles.reset(env_ids, self.common_step_counter * self.dt)
         self.gym.simulate(self.sim)
         self.gym.fetch_results(self.sim, True)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
@@ -798,7 +804,7 @@ class LeggedRobot(BaseTask):
         )
         self.dof_vel[env_ids] = 0.0
 
-        env_ids_int32 = env_ids.to(dtype=torch.int32)
+        env_ids_int32 = self.robot_actor_indices[env_ids].to(dtype=torch.int32)
         self.gym.set_dof_state_tensor_indexed(
             self.sim,
             gymtorch.unwrap_tensor(self.dof_state),
@@ -845,10 +851,10 @@ class LeggedRobot(BaseTask):
         else:
             self.root_states[env_ids] = self.base_init_state
             self.root_states[env_ids, :3] += self.env_origins[env_ids]
-        env_ids_int32 = env_ids.to(dtype=torch.int32)
+        env_ids_int32 = self.robot_actor_indices[env_ids].to(dtype=torch.int32)
         self.gym.set_actor_root_state_tensor_indexed(
             self.sim,
-            gymtorch.unwrap_tensor(self.root_states),
+            gymtorch.unwrap_tensor(self.all_root_states),
             gymtorch.unwrap_tensor(env_ids_int32),
             len(env_ids_int32),
         )
@@ -860,7 +866,7 @@ class LeggedRobot(BaseTask):
             -max_vel, max_vel, (self.num_envs, 2), device=self.device
         )  # lin vel x/y
         self.gym.set_actor_root_state_tensor(
-            self.sim, gymtorch.unwrap_tensor(self.root_states)
+            self.sim, gymtorch.unwrap_tensor(self.all_root_states)
         )
 
     def _update_terrain_curriculum(self, env_ids):
@@ -919,7 +925,28 @@ class LeggedRobot(BaseTask):
         self.gym.refresh_force_sensor_tensor(self.sim)
 
         # create some wrapper tensors for different slices
-        self.root_states = gymtorch.wrap_tensor(actor_root_state)
+        self.all_root_states = gymtorch.wrap_tensor(actor_root_state)
+        if self.all_root_states.shape[0] % self.num_envs != 0:
+            raise RuntimeError(
+                "Actor root state tensor is not evenly divisible by num_envs"
+            )
+        self.actors_per_env = self.all_root_states.shape[0] // self.num_envs
+        expected_robot_actor_indices = (
+            torch.arange(self.num_envs, device=self.device, dtype=torch.long)
+            * self.actors_per_env
+        )
+        if hasattr(self, "robot_actor_indices") and not torch.equal(
+            self.robot_actor_indices, expected_robot_actor_indices
+        ):
+            raise RuntimeError(
+                "Unexpected actor ordering: robot actors are not first in each env. "
+                "Dynamic obstacle root-state slicing must be updated before enabling obstacles."
+            )
+        self.root_states = self.all_root_states.view(
+            self.num_envs, self.actors_per_env, 13
+        )[:, 0, :]
+        if not hasattr(self, "robot_actor_indices"):
+            self.robot_actor_indices = expected_robot_actor_indices
         self.rigid_body_states = gymtorch.wrap_tensor(rigid_body_state_tensor).view(
             self.num_envs, -1, 13
         )
@@ -1097,6 +1124,8 @@ class LeggedRobot(BaseTask):
                 self.cfg.depth.resized[1],
                 self.cfg.depth.resized[0],
             ).to(self.device)
+        if self.dynamic_obstacles is not None:
+            self.dynamic_obstacles.bind_root_state_tensor(self.all_root_states)
 
     def _prepare_reward_function(self):
         """Prepares a list of reward functions, whcih will be called to compute the total reward.
@@ -1267,6 +1296,16 @@ class LeggedRobot(BaseTask):
         self.num_bodies = self.gym.get_asset_rigid_body_count(robot_asset)
         dof_props_asset = self.gym.get_asset_dof_properties(robot_asset)
         rigid_shape_props_asset = self.gym.get_asset_rigid_shape_properties(robot_asset)
+        self.dynamic_obstacles = None
+        if self.cfg.dynamic_obstacles.enable:
+            self.dynamic_obstacles = DynamicObstacleManager(
+                self.gym,
+                self.sim,
+                self.device,
+                self.cfg.dynamic_obstacles,
+                self.num_envs,
+            )
+            self.dynamic_obstacles.create_assets()
 
         # save body names from the asset
         body_names = self.gym.get_asset_rigid_body_names(robot_asset)
@@ -1303,6 +1342,9 @@ class LeggedRobot(BaseTask):
         env_lower = gymapi.Vec3(0.0, 0.0, 0.0)
         env_upper = gymapi.Vec3(0.0, 0.0, 0.0)
         self.actor_handles = []
+        self.robot_actor_indices = torch.zeros(
+            self.num_envs, dtype=torch.long, device=self.device
+        )
         self.envs = []
         self.cam_handles = []
         self.cam_tensors = []
@@ -1341,6 +1383,9 @@ class LeggedRobot(BaseTask):
                 self.cfg.asset.self_collisions,
                 0,
             )
+            self.robot_actor_indices[i] = self.gym.get_actor_index(
+                env_handle, anymal_handle, gymapi.DOMAIN_SIM
+            )
             dof_props = self._process_dof_props(dof_props_asset, i)
             self.gym.set_actor_dof_properties(env_handle, anymal_handle, dof_props)
             body_props = self.gym.get_actor_rigid_body_properties(
@@ -1352,6 +1397,10 @@ class LeggedRobot(BaseTask):
             )
             self.envs.append(env_handle)
             self.actor_handles.append(anymal_handle)
+            if self.dynamic_obstacles is not None:
+                self.dynamic_obstacles.create_obstacles_for_env(
+                    env_handle, i, self.env_origins[i]
+                )
 
             self.attach_camera(i, env_handle, anymal_handle)
 
@@ -1639,32 +1688,42 @@ class LeggedRobot(BaseTask):
                 )
 
     def _draw_feet(self):
-        if hasattr(self, "feet_at_edge"):
-            non_edge_geom = gymutil.WireframeSphereGeometry(
-                0.02, 16, 16, None, color=(0, 1, 0)
-            )
-            edge_geom = gymutil.WireframeSphereGeometry(
-                0.02, 16, 16, None, color=(1, 0, 0)
+        if self.viewer is None:
+            return
+
+        if not hasattr(self, "envs") or len(self.envs) == 0:
+            return
+
+        if not hasattr(self, "feet_at_edge"):
+            return
+
+        draw_env_id = min(int(self.lookat_id), len(self.envs) - 1)
+
+        non_edge_geom = gymutil.WireframeSphereGeometry(
+            0.02, 16, 16, None, color=(0, 1, 0)
+        )
+        edge_geom = gymutil.WireframeSphereGeometry(0.02, 16, 16, None, color=(1, 0, 0))
+
+        feet_pos = self.rigid_body_states[:, self.feet_indices, :3]
+
+        for foot_id in range(4):
+            pose = gymapi.Transform(
+                gymapi.Vec3(
+                    feet_pos[draw_env_id, foot_id, 0],
+                    feet_pos[draw_env_id, foot_id, 1],
+                    feet_pos[draw_env_id, foot_id, 2],
+                ),
+                r=None,
             )
 
-            feet_pos = self.rigid_body_states[:, self.feet_indices, :3]
-            for i in range(4):
-                pose = gymapi.Transform(
-                    gymapi.Vec3(
-                        feet_pos[self.lookat_id, i, 0],
-                        feet_pos[self.lookat_id, i, 1],
-                        feet_pos[self.lookat_id, i, 2],
-                    ),
-                    r=None,
+            if self.feet_at_edge[draw_env_id, foot_id]:
+                gymutil.draw_lines(
+                    edge_geom, self.gym, self.viewer, self.envs[draw_env_id], pose
                 )
-                if self.feet_at_edge[self.lookat_id, i]:
-                    gymutil.draw_lines(
-                        edge_geom, self.gym, self.viewer, self.envs[i], pose
-                    )
-                else:
-                    gymutil.draw_lines(
-                        non_edge_geom, self.gym, self.viewer, self.envs[i], pose
-                    )
+            else:
+                gymutil.draw_lines(
+                    non_edge_geom, self.gym, self.viewer, self.envs[draw_env_id], pose
+                )
 
     def _init_height_points(self):
         """Returns points at which the height measurments are sampled (in base frame)

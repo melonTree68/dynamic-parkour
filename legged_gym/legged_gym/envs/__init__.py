@@ -41,7 +41,15 @@ from .anymal_b.anymal_b_config import AnymalBRoughCfg, AnymalBRoughCfgPPO
 from .cassie.cassie import Cassie
 from .cassie.cassie_config import CassieRoughCfg, CassieRoughCfgPPO
 from .a1.a1_config import A1RoughCfg, A1RoughCfgPPO
-from .a1.a1_parkour_config import A1ParkourCfg, A1ParkourCfgPPO
+from .a1.a1_parkour_config import (
+    A1DynamicGapCfg,
+    A1DynamicHurdleCfg,
+    A1DynamicMixedCfg,
+    A1DynamicRampCfg,
+    A1DynamicStepCfg,
+    A1ParkourCfg,
+    A1ParkourCfgPPO,
+)
 from .go1.go1_config import Go1RoughCfg, Go1RoughCfgPPO
 
 import os
@@ -53,4 +61,19 @@ from legged_gym.utils.task_registry import task_registry
 # task_registry.register( "anymal_b", Anymal, AnymalBRoughCfg(), AnymalBRoughCfgPPO() )
 # task_registry.register( "cassie", Cassie, CassieRoughCfg(), CassieRoughCfgPPO() )
 task_registry.register("a1", LeggedRobot, A1ParkourCfg(), A1ParkourCfgPPO())
+task_registry.register(
+    "a1_dynamic_hurdle", LeggedRobot, A1DynamicHurdleCfg(), A1ParkourCfgPPO()
+)
+task_registry.register(
+    "a1_dynamic_step", LeggedRobot, A1DynamicStepCfg(), A1ParkourCfgPPO()
+)
+task_registry.register(
+    "a1_dynamic_gap", LeggedRobot, A1DynamicGapCfg(), A1ParkourCfgPPO()
+)
+task_registry.register(
+    "a1_dynamic_ramp", LeggedRobot, A1DynamicRampCfg(), A1ParkourCfgPPO()
+)
+task_registry.register(
+    "a1_dynamic_mixed", LeggedRobot, A1DynamicMixedCfg(), A1ParkourCfgPPO()
+)
 task_registry.register("go1", LeggedRobot, Go1RoughCfg(), Go1RoughCfgPPO())
