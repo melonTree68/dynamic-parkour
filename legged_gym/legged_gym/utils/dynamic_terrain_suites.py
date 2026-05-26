@@ -23,17 +23,20 @@ def hurdle(
 
 
 def step(name, x, y, z, amp, freq, phase, length=0.6, width=1.0, height=0.18):
+    center_z = z - 0.6 * height
     return {
         "name": name,
         "type": "changing_step_height",
         "actor_count": 1,
-        "base_position": [x, y, z],
+        "base_position": [x, y, center_z],
         "size": [length, width, height],
         "motion_axis": "z",
         "amplitude_range": amp,
         "frequency_range": freq,
         "phase_range": phase,
         "step_height": height,
+        "emerges_from_ground": True,
+        "nominal_exposed_height": z,
     }
 
 
@@ -50,6 +53,7 @@ def gap(
     length=0.55,
     width=1.15,
     height=0.10,
+    gap_motion="width",
 ):
     return {
         "name": name,
@@ -58,6 +62,7 @@ def gap(
         "base_position": [x, y, z],
         "size": [length, width, height],
         "motion_axis": axis,
+        "gap_motion": gap_motion,
         "edge_separation": separation,
         "amplitude_range": amp,
         "frequency_range": freq,
@@ -74,6 +79,7 @@ def ramp(
     freq,
     phase,
     base_pitch=0.15,
+    axis="roll",
     length=1.35,
     width=1.15,
     thickness=0.045,
@@ -84,7 +90,8 @@ def ramp(
         "actor_count": 1,
         "base_position": [x, y, z],
         "size": [length, width, thickness],
-        "motion_axis": "pitch",
+        "motion_axis": axis,
+        "rotation_axis_design": "parallel_to_robot_forward",
         "base_pitch": base_pitch,
         "amplitude_range": amp,
         "frequency_range": freq,
@@ -161,7 +168,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     1.55,
                     0.0,
                     0.30,
-                    "y",
+                    "x",
                     [0.06, 0.16],
                     [0.08, 0.22],
                     [0.0, 6.28318530718],
@@ -183,7 +190,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     1.45,
                     0.0,
                     0.31,
-                    "y",
+                    "x",
                     [0.07, 0.18],
                     [0.08, 0.24],
                     [0.0, 3.14159265359],
@@ -196,7 +203,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     2.35,
                     0.0,
                     0.36,
-                    "y",
+                    "x",
                     [0.08, 0.20],
                     [0.09, 0.26],
                     [3.14159265359, 6.28318530718],
@@ -218,7 +225,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     1.45,
                     -0.22,
                     0.32,
-                    "y",
+                    "x",
                     [0.06, 0.17],
                     [0.08, 0.24],
                     [0.0, 3.14159265359],
@@ -231,7 +238,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     2.20,
                     0.22,
                     0.38,
-                    "y",
+                    "x",
                     [0.08, 0.22],
                     [0.10, 0.28],
                     [3.14159265359, 6.28318530718],
@@ -244,7 +251,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     2.95,
                     0.0,
                     0.34,
-                    "y",
+                    "x",
                     [0.05, 0.16],
                     [0.08, 0.22],
                     [1.57079632679, 4.71238898038],
@@ -266,7 +273,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     1.25,
                     0.0,
                     0.30,
-                    "y",
+                    "x",
                     [0.05, 0.16],
                     [0.08, 0.24],
                     [0.0, 3.14159265359],
@@ -279,7 +286,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     1.95,
                     -0.20,
                     0.34,
-                    "y",
+                    "x",
                     [0.06, 0.18],
                     [0.09, 0.26],
                     [1.57079632679, 4.71238898038],
@@ -292,7 +299,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     2.65,
                     0.22,
                     0.38,
-                    "y",
+                    "x",
                     [0.07, 0.20],
                     [0.10, 0.30],
                     [3.14159265359, 6.28318530718],
@@ -305,7 +312,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     3.35,
                     0.0,
                     0.35,
-                    "y",
+                    "x",
                     [0.05, 0.16],
                     [0.08, 0.24],
                     [0.0, 6.28318530718],
@@ -739,7 +746,8 @@ DYNAMIC_TERRAIN_SUITES = {
                     [0.05, 0.16],
                     [0.08, 0.25],
                     [3.14159265359, 6.28318530718],
-                    base_pitch=0.18,
+                    base_pitch=0.12,
+                    axis="roll",
                     length=1.45,
                     width=1.15,
                     thickness=0.045,
@@ -823,6 +831,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     [0.06, 0.22],
                     [3.14159265359, 6.28318530718],
                     base_pitch=-0.08,
+                    axis="roll",
                     length=1.25,
                     width=1.10,
                     thickness=0.045,
@@ -849,6 +858,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     [0.06, 0.22],
                     [3.14159265359, 6.28318530718],
                     base_pitch=-0.08,
+                    axis="roll",
                     length=1.25,
                     width=1.10,
                     thickness=0.045,
@@ -869,7 +879,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     1.25,
                     0.0,
                     0.31,
-                    "y",
+                    "x",
                     [0.07, 0.18],
                     [0.08, 0.24],
                     [0.0, 6.28318530718],
@@ -879,7 +889,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 step(
                     "mixed_step_mid",
-                    2.30,
+                    3.55,
                     0.0,
                     0.18,
                     [0.02, 0.08],
@@ -891,7 +901,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 ramp(
                     "mixed_ramp_exit",
-                    3.55,
+                    6.25,
                     0.0,
                     0.12,
                     [0.03, 0.12],
@@ -916,7 +926,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     1.05,
                     0.0,
                     0.31,
-                    "y",
+                    "x",
                     [0.06, 0.16],
                     [0.08, 0.22],
                     [0.0, 6.28318530718],
@@ -971,7 +981,8 @@ DYNAMIC_TERRAIN_SUITES = {
                     [0.04, 0.14],
                     [0.06, 0.22],
                     [0.0, 6.28318530718],
-                    base_pitch=0.12,
+                    base_pitch=0.10,
+                    axis="roll",
                     length=1.30,
                     width=1.10,
                     thickness=0.045,
@@ -990,7 +1001,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     1.10,
                     0.0,
                     0.32,
-                    "y",
+                    "x",
                     [0.06, 0.18],
                     [0.08, 0.24],
                     [0.0, 6.28318530718],
@@ -1003,7 +1014,7 @@ DYNAMIC_TERRAIN_SUITES = {
                     1.80,
                     -0.18,
                     0.34,
-                    "y",
+                    "x",
                     [0.06, 0.18],
                     [0.08, 0.24],
                     [1.57079632679, 4.71238898038],
@@ -1013,7 +1024,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 gap(
                     "full_course_gap_1",
-                    2.75,
+                    2.45,
                     0.16,
                     0.10,
                     "x",
@@ -1027,7 +1038,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 gap(
                     "full_course_gap_2",
-                    4.60,
+                    3.65,
                     -0.14,
                     0.10,
                     "x",
@@ -1041,7 +1052,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 step(
                     "full_course_stair_1",
-                    5.85,
+                    4.75,
                     -0.16,
                     0.14,
                     [0.02, 0.09],
@@ -1053,7 +1064,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 step(
                     "full_course_stair_2",
-                    6.45,
+                    5.25,
                     0.16,
                     0.24,
                     [0.02, 0.09],
@@ -1065,7 +1076,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 step(
                     "full_course_stair_3",
-                    7.10,
+                    5.75,
                     0.0,
                     0.30,
                     [0.02, 0.09],
@@ -1077,7 +1088,7 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 ramp(
                     "full_course_ramp_up",
-                    8.20,
+                    6.15,
                     -0.10,
                     0.12,
                     [0.03, 0.12],
@@ -1090,13 +1101,14 @@ DYNAMIC_TERRAIN_SUITES = {
                 ),
                 ramp(
                     "full_course_ramp_down",
-                    9.60,
+                    6.95,
                     0.10,
                     0.12,
                     [0.03, 0.12],
                     [0.05, 0.20],
                     [3.14159265359, 6.28318530718],
                     base_pitch=-0.08,
+                    axis="roll",
                     length=1.25,
                     width=1.08,
                     thickness=0.045,
@@ -1105,6 +1117,37 @@ DYNAMIC_TERRAIN_SUITES = {
         ),
     ],
 }
+
+
+def _apply_layout_motion_consistency():
+    synced_types = (
+        "moving_hurdle",
+        "shifting_gap",
+        "changing_step_height",
+        "time_varying_ramp",
+    )
+    for layouts in DYNAMIC_TERRAIN_SUITES.values():
+        for layout in layouts:
+            by_type = {}
+            for obstacle in layout["obstacles"]:
+                obstacle_type = obstacle["type"]
+                if obstacle_type not in synced_types:
+                    continue
+                if obstacle_type not in by_type:
+                    by_type[obstacle_type] = {
+                        "amplitude_range": list(obstacle["amplitude_range"]),
+                        "frequency_range": list(obstacle["frequency_range"]),
+                    }
+                    continue
+                obstacle["amplitude_range"] = list(
+                    by_type[obstacle_type]["amplitude_range"]
+                )
+                obstacle["frequency_range"] = list(
+                    by_type[obstacle_type]["frequency_range"]
+                )
+
+
+_apply_layout_motion_consistency()
 
 
 def suite_names():

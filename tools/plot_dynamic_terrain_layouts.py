@@ -84,10 +84,14 @@ def draw_motion_arrow(ax, obs, scale=0.45):
         start = (x, y - arrow_len)
         end = (x, y + arrow_len)
     elif axis == "z":
-        ax.text(x, y, "z-motion", ha="center", va="bottom", fontsize=7)
+        label = "emerge z" if obs.get("emerges_from_ground") else "z-motion"
+        ax.text(x, y, label, ha="center", va="bottom", fontsize=7)
         return
     elif axis == "pitch":
         ax.text(x, y, "pitch", ha="center", va="bottom", fontsize=7)
+        return
+    elif axis == "roll":
+        ax.text(x, y, "roll", ha="center", va="bottom", fontsize=7)
         return
     else:
         return
@@ -163,7 +167,21 @@ def draw_single_obstacle(ax, obs, index):
                 color="black",
             )
 
-        draw_motion_arrow(ax, obs)
+        if obs.get("gap_motion") == "width":
+            arrow_len = max(0.12, sum(obs.get("amplitude_range", [0.0, 0.0])) / 2.0)
+            for sign in [-1.0, 1.0]:
+                arrow = FancyArrowPatch(
+                    (x + sign * 0.08, y + width / 2.0 + 0.10),
+                    (x + sign * arrow_len, y + width / 2.0 + 0.10),
+                    arrowstyle="<->",
+                    mutation_scale=10,
+                    linewidth=1.4,
+                    color="black",
+                )
+                ax.add_patch(arrow)
+            ax.text(x, y + width / 2.0 + 0.16, "width", ha="center", fontsize=7)
+        else:
+            draw_motion_arrow(ax, obs)
         return
 
     x0, y0, length, width = rect_for_obstacle(obs)
@@ -372,6 +390,9 @@ def draw_raster_arrow(canvas, transform, obs, scale=0.45):
     elif axis == "pitch":
         start = transform(x - 0.16, y - 0.16)
         end = transform(x + 0.16, y + 0.16)
+    elif axis == "roll":
+        start = transform(x - 0.16, y + 0.16)
+        end = transform(x + 0.16, y - 0.16)
     else:
         return
 
@@ -468,7 +489,12 @@ def draw_raster_layout(layout, out_path):
                 x0, y0 = transform(cx - length / 2.0, cy - width_m / 2.0)
                 x1, y1 = transform(cx + length / 2.0, cy + width_m / 2.0)
                 canvas.rect(x0, y0, x1, y1, fill=color, outline=(0, 0, 0), alpha=0.55)
-            draw_raster_arrow(canvas, transform, obs)
+            if obs.get("gap_motion") == "width":
+                left = transform(x - 0.20, y + width_m / 2.0 + 0.08)
+                right = transform(x + 0.20, y + width_m / 2.0 + 0.08)
+                canvas.line(*left, *right, color=(0, 0, 0), width=2)
+            else:
+                draw_raster_arrow(canvas, transform, obs)
             continue
 
         x0, y0 = transform(x - length / 2.0, y - width_m / 2.0)
@@ -565,7 +591,7 @@ def write_markdown_index(suites, out_dir):
         "- Red: moving hurdle",
         "- Blue: changing step height",
         "- Green: shifting gap takeoff/landing platforms",
-        "- Purple: time-varying ramp",
+        "- Purple: time-varying ramp; roll means rotation around the forward x axis",
         "- Red dots: dynamic suite goals",
         "",
     ]
@@ -595,6 +621,7 @@ def write_markdown_index(suites, out_dir):
             for obs in layout.get("obstacles", []):
                 motion = (
                     f"axis={obs.get('motion_axis')}, "
+                    f"mode={obs.get('gap_motion', obs.get('motion_axis'))}, "
                     f"amp={obs.get('amplitude_range')}, "
                     f"freq={obs.get('frequency_range')}"
                 )

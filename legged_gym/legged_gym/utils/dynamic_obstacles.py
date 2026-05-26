@@ -77,6 +77,7 @@ class DynamicObstacleManager:
         self.phases = torch.zeros_like(self.amplitudes)
         self.reset_times = torch.zeros_like(self.amplitudes)
         self.current_offsets = torch.zeros_like(self.amplitudes)
+        self.motion_multipliers = torch.ones_like(self.amplitudes)
         self.current_step_heights = torch.zeros_like(self.amplitudes)
         self.current_ramp_angles = torch.zeros_like(self.amplitudes)
 
@@ -270,16 +271,21 @@ class DynamicObstacleManager:
         return self._update_all_actor_slots(env_ids, t)
 
     def _update_all_actor_slots(self, env_ids, t):
-        offset, velocity = self._compute_sinusoid(env_ids, t)
+        raw_offset, raw_velocity = self._compute_sinusoid(env_ids, t)
+        motion_multipliers = self.motion_multipliers[env_ids]
+        offset = raw_offset * motion_multipliers
+        velocity = raw_velocity * motion_multipliers
         active = self.active_mask[env_ids]
         axis_ids = self.axis_ids[env_ids]
+        ramp_mask = active & self._actor_type_mask(env_ids, "time_varying_ramp")
+        linear_motion_mask = active & ~ramp_mask
 
         positions = self.base_positions[env_ids].clone()
         velocities = torch.zeros_like(positions)
         orientations, angular_velocities = self._fixed_orientation(env_ids)
 
         for axis_id in [0, 1, 2]:
-            mask = active & (axis_ids == axis_id)
+            mask = linear_motion_mask & (axis_ids == axis_id)
             position_axis = positions[:, :, axis_id]
             velocity_axis = velocities[:, :, axis_id]
             position_axis[mask] = position_axis[mask] + offset[mask]
@@ -287,19 +293,25 @@ class DynamicObstacleManager:
             positions[:, :, axis_id] = position_axis
             velocities[:, :, axis_id] = velocity_axis
 
-        ramp_mask = active & self._actor_type_mask(env_ids, "time_varying_ramp")
         if torch.any(ramp_mask):
             ramp_angles = self.base_ramp_pitches[env_ids] + offset
             half_angles = 0.5 * ramp_angles
-            orientation_y = orientations[:, :, 1]
             orientation_w = orientations[:, :, 3]
-            angular_velocity_y = angular_velocities[:, :, 1]
-            orientation_y[ramp_mask] = torch.sin(half_angles[ramp_mask])
             orientation_w[ramp_mask] = torch.cos(half_angles[ramp_mask])
-            angular_velocity_y[ramp_mask] = velocity[ramp_mask]
-            orientations[:, :, 1] = orientation_y
             orientations[:, :, 3] = orientation_w
-            angular_velocities[:, :, 1] = angular_velocity_y
+
+            for ramp_axis_id in [0, 1]:
+                axis_ramp_mask = ramp_mask & (axis_ids == ramp_axis_id)
+                if not torch.any(axis_ramp_mask):
+                    continue
+                orientation_axis = orientations[:, :, ramp_axis_id]
+                angular_velocity_axis = angular_velocities[:, :, ramp_axis_id]
+                orientation_axis[axis_ramp_mask] = torch.sin(
+                    half_angles[axis_ramp_mask]
+                )
+                angular_velocity_axis[axis_ramp_mask] = velocity[axis_ramp_mask]
+                orientations[:, :, ramp_axis_id] = orientation_axis
+                angular_velocities[:, :, ramp_axis_id] = angular_velocity_axis
 
         return positions, velocities, orientations, angular_velocities
 
@@ -409,7 +421,7 @@ class DynamicObstacleManager:
                         obstacle_type, self.SUPPORTED_TYPES
                     )
                 )
-            if obstacle["actor_count"] != self._primitive_actor_count(obstacle_type):
+            if obstacle["actor_count"] != self._expected_actor_count(obstacle):
                 raise ValueError(
                     "layout obstacle '{}' has wrong actor_count".format(
                         obstacle.get("name", obstacle_type)
@@ -430,6 +442,14 @@ class DynamicObstacleManager:
                     raise ValueError("motion_axis must be 'x' or 'y'")
             if obstacle_type == "shifting_gap" and obstacle["edge_separation"] <= 0:
                 raise ValueError("gap edge separation must be positive")
+            if obstacle_type == "shifting_gap" and obstacle.get(
+                "gap_motion", "translate"
+            ) not in ["translate", "width"]:
+                raise ValueError("gap_motion must be 'translate' or 'width'")
+            if obstacle_type == "time_varying_ramp" and obstacle.get(
+                "motion_axis", "pitch"
+            ) not in ["pitch", "roll"]:
+                raise ValueError("ramp motion_axis must be 'pitch' or 'roll'")
 
     def _validate_range(self, value_range, name):
         if len(value_range) != 2:
@@ -553,6 +573,10 @@ class DynamicObstacleManager:
             if obstacle_type == "shifting_gap":
                 axis_id = self._axis_id(obstacle["motion_axis"])
                 edge_offset = 0.5 * obstacle["edge_separation"]
+                gap_motion = obstacle.get("gap_motion", "translate")
+                motion_multipliers = (
+                    [-1.0, 1.0] if gap_motion == "width" else [1.0, 1.0]
+                )
                 for edge_id, signed_offset in enumerate([-edge_offset, edge_offset]):
                     base_position = list(obstacle["base_position"])
                     base_position[axis_id] += signed_offset
@@ -560,10 +584,14 @@ class DynamicObstacleManager:
                     slot["name"] = "{}_edge_{}".format(obstacle["name"], edge_id)
                     slot["base_position"] = base_position
                     slot["group_id"] = group_id
+                    slot["motion_group_id"] = group_id
+                    slot["motion_multiplier"] = motion_multipliers[edge_id]
                     slots.append(slot)
             else:
                 slot = dict(obstacle)
                 slot["group_id"] = group_id
+                slot["motion_group_id"] = group_id
+                slot["motion_multiplier"] = 1.0
                 slots.append(slot)
             group_id += 1
         return slots
@@ -575,12 +603,18 @@ class DynamicObstacleManager:
         self.axis_ids[env_id, actor_slot] = self._slot_axis_id(slot)
         self.base_ramp_pitches[env_id, actor_slot] = float(slot.get("base_pitch", 0.0))
         self.step_heights[env_id, actor_slot] = float(slot.get("step_height", 0.0))
+        self.motion_multipliers[env_id, actor_slot] = float(
+            slot.get("motion_multiplier", 1.0)
+        )
         self.active_mask[env_id, actor_slot] = True
-        self.motion_group_ids[env_id, actor_slot] = int(slot["group_id"])
+        self.motion_group_ids[env_id, actor_slot] = int(
+            slot.get("motion_group_id", slot["group_id"])
+        )
         self.actor_type_names[env_id][actor_slot] = slot["type"]
         if slot["type"] == "time_varying_ramp":
-            self.current_orientations[env_id, actor_slot] = self._pitch_quat(
-                float(slot.get("base_pitch", 0.0))
+            self.current_orientations[env_id, actor_slot] = self._axis_angle_quat(
+                float(slot.get("base_pitch", 0.0)),
+                self.axis_ids[env_id, actor_slot].item(),
             )
 
     def _configure_inactive_slot(self, env_id, actor_slot, env_origin):
@@ -588,18 +622,30 @@ class DynamicObstacleManager:
         self.base_positions[env_id, actor_slot] = position
         self.current_positions[env_id, actor_slot] = position
         self.current_orientations[env_id, actor_slot] = self.identity_quat
+        self.motion_multipliers[env_id, actor_slot] = 0.0
         self.actor_type_names[env_id][actor_slot] = self.INACTIVE_TYPE
 
     def _sample_motion_parameters(self, env_ids):
         if self.cfg.randomize_on_reset:
             for env_id in env_ids.tolist():
                 group_ids = self.motion_group_ids[env_id]
+                type_motion = {}
                 for group_id in torch.unique(group_ids[group_ids >= 0]).tolist():
                     mask = group_ids == group_id
                     slot_index = int(torch.nonzero(mask, as_tuple=False)[0].item())
                     slot = self.actor_slots_by_env[env_id][slot_index]
-                    amplitude = self._uniform(slot["amplitude_range"], (1,)).item()
-                    frequency = self._uniform(slot["frequency_range"], (1,)).item()
+                    slot_type = slot["type"]
+                    if slot_type not in type_motion:
+                        type_motion[slot_type] = {
+                            "amplitude": self._uniform(
+                                slot["amplitude_range"], (1,)
+                            ).item(),
+                            "frequency": self._uniform(
+                                slot["frequency_range"], (1,)
+                            ).item(),
+                        }
+                    amplitude = type_motion[slot_type]["amplitude"]
+                    frequency = type_motion[slot_type]["frequency"]
                     phase = self._uniform(slot["phase_range"], (1,)).item()
                     self.amplitudes[env_id, mask] = amplitude
                     self.frequencies[env_id, mask] = frequency
@@ -612,13 +658,20 @@ class DynamicObstacleManager:
 
         for env_id in env_ids.tolist():
             group_ids = self.motion_group_ids[env_id]
+            type_motion = {}
             for group_id in torch.unique(group_ids[group_ids >= 0]).tolist():
                 mask = group_ids == group_id
                 slot_index = int(torch.nonzero(mask, as_tuple=False)[0].item())
                 slot = self.actor_slots_by_env[env_id][slot_index]
-                self.amplitudes[env_id, mask] = sum(slot["amplitude_range"]) / 2.0
-                self.frequencies[env_id, mask] = sum(slot["frequency_range"]) / 2.0
-                self.phases[env_id, mask] = 0.0
+                slot_type = slot["type"]
+                if slot_type not in type_motion:
+                    type_motion[slot_type] = {
+                        "amplitude": sum(slot["amplitude_range"]) / 2.0,
+                        "frequency": sum(slot["frequency_range"]) / 2.0,
+                    }
+                self.amplitudes[env_id, mask] = type_motion[slot_type]["amplitude"]
+                self.frequencies[env_id, mask] = type_motion[slot_type]["frequency"]
+                self.phases[env_id, mask] = sum(slot["phase_range"]) / 2.0
             inactive_mask = group_ids < 0
             self.amplitudes[env_id, inactive_mask] = 0.0
             self.frequencies[env_id, inactive_mask] = 0.0
@@ -675,11 +728,14 @@ class DynamicObstacleManager:
             )
         )
 
+    def _expected_actor_count(self, obstacle):
+        return self._primitive_actor_count(obstacle["type"])
+
     def _asset_density(self):
         return float(getattr(self.cfg, "asset_density", self.cfg.hurdle_asset_density))
 
     def _axis_id(self, axis):
-        axis_ids = {"x": 0, "y": 1, "z": 2, "pitch": 1}
+        axis_ids = {"x": 0, "roll": 0, "y": 1, "pitch": 1, "z": 2}
         if axis not in axis_ids:
             raise ValueError("unknown dynamic obstacle axis '{}'".format(axis))
         return axis_ids[axis]
@@ -688,7 +744,7 @@ class DynamicObstacleManager:
         if slot["type"] == "changing_step_height":
             return 2
         if slot["type"] == "time_varying_ramp":
-            return 1
+            return self._axis_id(slot.get("motion_axis", "pitch"))
         return self._axis_id(slot["motion_axis"])
 
     def _actor_type_mask(self, env_ids, actor_type):
@@ -760,10 +816,12 @@ class DynamicObstacleManager:
             return 1
         return 0 if self.cfg.collision_enabled else 1
 
-    def _pitch_quat(self, pitch):
-        half_pitch = 0.5 * pitch
+    def _axis_angle_quat(self, angle, axis_id):
+        half_angle = 0.5 * angle
+        quat = [0.0, 0.0, 0.0, math.cos(half_angle)]
+        quat[int(axis_id)] = math.sin(half_angle)
         return torch.tensor(
-            [0.0, math.sin(half_pitch), 0.0, math.cos(half_pitch)],
+            quat,
             dtype=torch.float,
             device=self.device,
         )
@@ -789,8 +847,13 @@ class DynamicObstacleManager:
 
         current_ramp_angles = torch.zeros_like(self.current_ramp_angles[env_ids])
         if torch.any(ramp_mask):
+            ramp_axis = torch.gather(
+                self.current_orientations[env_ids, :, 0:3],
+                2,
+                self.axis_ids[env_ids].unsqueeze(-1),
+            ).squeeze(-1)
             ramp_angles = 2.0 * torch.atan2(
-                self.current_orientations[env_ids, :, 1],
+                ramp_axis,
                 self.current_orientations[env_ids, :, 3],
             )
             current_ramp_angles[ramp_mask] = ramp_angles[ramp_mask]
