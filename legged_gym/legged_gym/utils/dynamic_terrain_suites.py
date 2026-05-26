@@ -5,6 +5,13 @@ Isaac Gym box actors while keeping static heightfields and triangle meshes
 unchanged.
 """
 
+DYNAMIC_TERRAIN_SHARED_FREQUENCY_RANGES = {
+    "moving_hurdle": [0.08, 0.22],
+    "changing_step_height": [0.05, 0.20],
+    "shifting_gap": [0.05, 0.20],
+    "time_varying_ramp": [0.05, 0.18],
+}
+
 
 def hurdle(
     name, x, y, z, axis, amp, freq, phase, length=1.0, thickness=0.08, height=0.35
@@ -1119,35 +1126,18 @@ DYNAMIC_TERRAIN_SUITES = {
 }
 
 
-def _apply_layout_motion_consistency():
-    synced_types = (
-        "moving_hurdle",
-        "shifting_gap",
-        "changing_step_height",
-        "time_varying_ramp",
-    )
+def _apply_shared_type_frequency_ranges():
     for layouts in DYNAMIC_TERRAIN_SUITES.values():
         for layout in layouts:
-            by_type = {}
             for obstacle in layout["obstacles"]:
-                obstacle_type = obstacle["type"]
-                if obstacle_type not in synced_types:
-                    continue
-                if obstacle_type not in by_type:
-                    by_type[obstacle_type] = {
-                        "amplitude_range": list(obstacle["amplitude_range"]),
-                        "frequency_range": list(obstacle["frequency_range"]),
-                    }
-                    continue
-                obstacle["amplitude_range"] = list(
-                    by_type[obstacle_type]["amplitude_range"]
+                frequency_range = DYNAMIC_TERRAIN_SHARED_FREQUENCY_RANGES.get(
+                    obstacle["type"]
                 )
-                obstacle["frequency_range"] = list(
-                    by_type[obstacle_type]["frequency_range"]
-                )
+                if frequency_range is not None:
+                    obstacle["frequency_range"] = list(frequency_range)
 
 
-_apply_layout_motion_consistency()
+_apply_shared_type_frequency_ranges()
 
 
 def suite_names():

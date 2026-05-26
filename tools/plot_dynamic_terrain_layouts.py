@@ -62,6 +62,25 @@ def load_suites():
     return module.DYNAMIC_TERRAIN_SUITES
 
 
+def shared_frequency_ranges(suites):
+    ranges_by_type = {}
+    for layouts in suites.values():
+        for layout in layouts:
+            for obs in layout.get("obstacles", []):
+                obs_type = obs.get("type")
+                frequency_range = obs.get("frequency_range")
+                if obs_type is not None and frequency_range is not None:
+                    ranges_by_type.setdefault(obs_type, set()).add(
+                        tuple(frequency_range)
+                    )
+    return {
+        obs_type: list(sorted(ranges)[0])
+        if len(ranges) == 1
+        else [list(freq_range) for freq_range in sorted(ranges)]
+        for obs_type, ranges in ranges_by_type.items()
+    }
+
+
 def rect_for_obstacle(obs):
     x, y, _z = obs.get("base_position", [0.0, 0.0, 0.0])
     size = obs.get("size", [0.5, 0.5, 0.1])
@@ -580,11 +599,15 @@ def plot_layout(suite_name, layout_id, layout, out_path):
 
 def write_markdown_index(suites, out_dir):
     md_path = out_dir / "README.md"
+    frequency_ranges = shared_frequency_ranges(suites)
     lines = [
         "# Dynamic Terrain Layout Atlas",
         "",
         "This atlas is generated from `dynamic_terrain_suites.py`.",
         "It is a top-down design preview, not an Isaac Gym render.",
+        "Frequency policy: every obstacle of the same type uses one shared "
+        "global frequency range across all layouts. Difficulty is varied by "
+        "obstacle count, spacing, geometry, and amplitude.",
         "",
         "Color meaning:",
         "",
@@ -594,7 +617,13 @@ def write_markdown_index(suites, out_dir):
         "- Purple: time-varying ramp; roll means rotation around the forward x axis",
         "- Red dots: dynamic suite goals",
         "",
+        "Shared frequency ranges:",
+        "",
     ]
+    for obs_type in COLORS:
+        if obs_type in frequency_ranges:
+            lines.append(f"- `{obs_type}`: `{frequency_ranges[obs_type]}`")
+    lines.append("")
 
     for suite_name, layouts in suites.items():
         lines.append(f"## {suite_name}")
