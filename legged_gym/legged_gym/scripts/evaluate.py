@@ -29,6 +29,7 @@
 # Copyright (c) 2021 ETH Zurich, Nikita Rudin
 
 from legged_gym import LEGGED_GYM_ROOT_DIR
+import csv
 import os
 import code
 
@@ -235,6 +236,26 @@ def play(args):
 
     edge_violation_mean = np.mean(edge_violation_buffer)
     edge_violation_std = np.std(edge_violation_buffer)
+
+    metrics_path = os.path.join(log_pth, "metrics.csv")
+    checkpoint = args.checkpoint
+    if checkpoint == -1:
+        _, checkpoint = get_load_path(root=log_pth, checkpoint=checkpoint)
+    with open(metrics_path, "a", newline="") as metrics_file:
+        metrics_writer = csv.writer(metrics_file)
+        metrics_writer.writerow(
+            [
+                checkpoint,
+                rew_mean,
+                rew_std,
+                len_mean,
+                len_std,
+                num_waypoints_mean,
+                num_waypoints_std,
+                edge_violation_mean,
+                edge_violation_std,
+            ]
+        )
 
     print("Mean reward: {:.2f}$\pm${:.2f}".format(rew_mean, rew_std))
     print("Mean episode length: {:.2f}$\pm${:.2f}".format(len_mean, len_std))
