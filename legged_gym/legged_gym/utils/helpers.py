@@ -203,7 +203,7 @@ def get_args():
         {
             "name": "--task",
             "type": str,
-            "default": "a1",
+            "default": "a1_dynamic",
             "help": "Resume training or start testing from a checkpoint. Overrides config file if provided.",
         },
         {
@@ -283,7 +283,7 @@ def get_args():
         {
             "name": "--proj_name",
             "type": str,
-            "default": "parkour_new",
+            "default": "reproduction",
             "help": "run folder name.",
         },
         {

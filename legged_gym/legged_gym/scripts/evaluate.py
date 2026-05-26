@@ -103,10 +103,20 @@ def play(args):
         "parkour_gap": 0.25,
         "demo": 0,
     }
+    if args.task == "a1_dynamic":
+        env_cfg.terrain.terrain_dict = {
+            **{name: 0.0 for name in env_cfg.terrain.terrain_dict},
+            "dynamic_hurdle": 0.25,
+            "dynamic_gap": 0.25,
+            "dynamic_tilted_pads": 0.25,
+            "dynamic_step": 0.25,
+        }
 
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
     env_cfg.terrain.curriculum = False
-    env_cfg.terrain.max_difficulty = False
+    env_cfg.terrain.max_difficulty = False  # if args.task == "a1"
+    if args.task == "a1_dynamic":
+        env_cfg.terrain.max_difficulty = True
 
     env_cfg.depth.angle = [0, 1]
     env_cfg.noise.add_noise = True

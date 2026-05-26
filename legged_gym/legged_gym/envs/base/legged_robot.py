@@ -101,6 +101,8 @@ class LeggedRobot(BaseTask):
         self.height_samples = None
         self.debug_viz = True
         self.init_done = False
+        if not hasattr(self, "num_actors_per_env"):
+            self.num_actors_per_env = 1
         self._parse_cfg(self.cfg)
         super().__init__(self.cfg, sim_params, physics_engine, sim_device, headless)
 
@@ -165,6 +167,7 @@ class LeggedRobot(BaseTask):
             self.gym.set_dof_actuation_force_tensor(
                 self.sim, gymtorch.unwrap_tensor(self.torques)
             )
+            self._pre_physics_step()
             self.gym.simulate(self.sim)
             self.gym.fetch_results(self.sim, True)
             self.gym.refresh_dof_state_tensor(self.sim)
@@ -396,6 +399,7 @@ class LeggedRobot(BaseTask):
         self._reset_dofs(env_ids)
         self._reset_root_states(env_ids)
         self._resample_commands(env_ids)
+        self._reset_additional_actors(env_ids)
         self.gym.simulate(self.sim)
         self.gym.fetch_results(self.sim, True)
         self.gym.refresh_rigid_body_state_tensor(self.sim)
@@ -577,6 +581,7 @@ class LeggedRobot(BaseTask):
             )
         print("Finished creating ground. Time taken {:.2f} s".format(time() - start))
         print("*" * 80)
+        self._prepare_additional_assets()
         self._create_envs()
 
     def set_camera(self, position, lookat):
@@ -586,6 +591,22 @@ class LeggedRobot(BaseTask):
         self.gym.viewer_camera_look_at(self.viewer, None, cam_pos, cam_target)
 
     # ------------- Callbacks --------------
+    def _prepare_additional_assets(self):
+        """Create optional assets used by specialized environments."""
+        pass
+
+    def _create_additional_actors(self, env_handle, env_id):
+        """Create optional additional actors after the robot actor."""
+        pass
+
+    def _pre_physics_step(self):
+        """Update optional scripted actors before each simulator substep."""
+        pass
+
+    def _reset_additional_actors(self, env_ids):
+        """Reset optional scripted actors with their robot environments."""
+        pass
+
     def _process_rigid_shape_props(self, props, env_id):
         """Callback allowing to store/change/randomize the rigid shape properties of each environment.
             Called During environment creation.
@@ -802,7 +823,7 @@ class LeggedRobot(BaseTask):
         self.gym.set_dof_state_tensor_indexed(
             self.sim,
             gymtorch.unwrap_tensor(self.dof_state),
-            gymtorch.unwrap_tensor(env_ids_int32),
+            gymtorch.unwrap_tensor(self.robot_actor_indices[env_ids_int32.long()]),
             len(env_ids_int32),
         )
 
@@ -848,8 +869,8 @@ class LeggedRobot(BaseTask):
         env_ids_int32 = env_ids.to(dtype=torch.int32)
         self.gym.set_actor_root_state_tensor_indexed(
             self.sim,
-            gymtorch.unwrap_tensor(self.root_states),
-            gymtorch.unwrap_tensor(env_ids_int32),
+            gymtorch.unwrap_tensor(self.all_root_states.view(-1, 13)),
+            gymtorch.unwrap_tensor(self.robot_actor_indices[env_ids_int32.long()]),
             len(env_ids_int32),
         )
 
@@ -860,7 +881,7 @@ class LeggedRobot(BaseTask):
             -max_vel, max_vel, (self.num_envs, 2), device=self.device
         )  # lin vel x/y
         self.gym.set_actor_root_state_tensor(
-            self.sim, gymtorch.unwrap_tensor(self.root_states)
+            self.sim, gymtorch.unwrap_tensor(self.all_root_states.view(-1, 13))
         )
 
     def _update_terrain_curriculum(self, env_ids):
@@ -919,7 +940,14 @@ class LeggedRobot(BaseTask):
         self.gym.refresh_force_sensor_tensor(self.sim)
 
         # create some wrapper tensors for different slices
-        self.root_states = gymtorch.wrap_tensor(actor_root_state)
+        self.all_root_states = gymtorch.wrap_tensor(actor_root_state).view(
+            self.num_envs, self.num_actors_per_env, 13
+        )
+        self.root_states = self.all_root_states[:, 0, :]
+        self.robot_actor_indices = (
+            torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
+            * self.num_actors_per_env
+        )
         self.rigid_body_states = gymtorch.wrap_tensor(rigid_body_state_tensor).view(
             self.num_envs, -1, 13
         )
@@ -1352,6 +1380,7 @@ class LeggedRobot(BaseTask):
             )
             self.envs.append(env_handle)
             self.actor_handles.append(anymal_handle)
+            self._create_additional_actors(env_handle, i)
 
             self.attach_camera(i, env_handle, anymal_handle)
 

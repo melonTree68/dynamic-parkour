@@ -40,6 +40,14 @@ import pyfqmr
 from scipy.ndimage import binary_dilation
 
 
+DYNAMIC_HURDLE = 21
+DYNAMIC_GAP = 22
+DYNAMIC_TILTED_PADS = 23
+DYNAMIC_STEP = 24
+DYNAMIC_OBSTACLES_PER_TILE = 6
+DYNAMIC_SLOTS_PER_OBSTACLE = 2
+
+
 class Terrain:
     def __init__(self, cfg: LeggedRobotCfg.terrain, num_robots) -> None:
         self.cfg = cfg
@@ -60,6 +68,24 @@ class Terrain:
         self.cfg.num_sub_terrains = cfg.num_rows * cfg.num_cols
         self.env_origins = np.zeros((cfg.num_rows, cfg.num_cols, 3))
         self.terrain_type = np.zeros((cfg.num_rows, cfg.num_cols))
+        self.dynamic_family = np.full((cfg.num_rows, cfg.num_cols), -1, dtype=np.int16)
+        self.dynamic_difficulty = np.zeros(
+            (cfg.num_rows, cfg.num_cols), dtype=np.float32
+        )
+        self.dynamic_obstacle_specs = np.zeros(
+            (
+                cfg.num_rows,
+                cfg.num_cols,
+                DYNAMIC_OBSTACLES_PER_TILE,
+                DYNAMIC_SLOTS_PER_OBSTACLE,
+                7,
+            ),
+            dtype=np.float32,
+        )
+        self.dynamic_obstacle_specs[..., 2] = -5.0
+        self.dynamic_goal_mask = np.zeros(
+            (cfg.num_rows, cfg.num_cols, cfg.num_goals), dtype=bool
+        )
         # self.env_slope_vec = np.zeros((cfg.num_rows, cfg.num_cols, 3))
         self.goals = np.zeros((cfg.num_rows, cfg.num_cols, cfg.num_goals, 3))
         self.num_goals = cfg.num_goals
@@ -72,6 +98,9 @@ class Terrain:
         self.tot_rows = int(cfg.num_rows * self.length_per_env_pixels) + 2 * self.border
 
         self.height_field_raw = np.zeros((self.tot_rows, self.tot_cols), dtype=np.int16)
+        self.proportions.extend(
+            [self.proportions[-1]] * max(0, 24 - len(self.proportions))
+        )
         if cfg.curriculum:
             self.curiculum()
         elif cfg.selected:
@@ -394,6 +423,20 @@ class Terrain:
             idx = 20
             demo_terrain(terrain)
             self.add_roughness(terrain)
+        elif choice < self.proportions[20]:
+            idx = DYNAMIC_HURDLE
+            dynamic_hurdle_terrain(terrain, difficulty, self.num_goals)
+            self.add_roughness(terrain)
+        elif choice < self.proportions[21]:
+            idx = DYNAMIC_GAP
+            dynamic_gap_terrain(terrain, difficulty, self.num_goals)
+        elif choice < self.proportions[22]:
+            idx = DYNAMIC_TILTED_PADS
+            dynamic_tilted_pads_terrain(terrain, difficulty, self.num_goals)
+        elif choice < self.proportions[23]:
+            idx = DYNAMIC_STEP
+            dynamic_step_terrain(terrain, difficulty, self.num_goals)
+            self.add_roughness(terrain)
         # np.set_printoptions(precision=2)
         # print(np.array(self.proportions), choice)
         terrain.idx = idx
@@ -430,7 +473,146 @@ class Terrain:
             i * self.env_length,
             j * self.env_width,
         ]
+        if hasattr(terrain, "dynamic_family"):
+            self.dynamic_family[i, j] = terrain.dynamic_family
+            self.dynamic_difficulty[i, j] = terrain.dynamic_difficulty
+            specs = terrain.dynamic_obstacle_specs.copy()
+            specs[..., 0] += i * self.env_length
+            specs[..., 1] += j * self.env_width
+            self.dynamic_obstacle_specs[i, j] = specs
+            self.dynamic_goal_mask[i, j] = terrain.dynamic_goal_mask
         # self.env_slope_vec[i, j] = terrain.slope_vector
+
+
+def _init_dynamic_metadata(terrain, family, difficulty, num_goals):
+    terrain.dynamic_family = family
+    terrain.dynamic_difficulty = np.float32(difficulty)
+    terrain.dynamic_obstacle_specs = np.zeros(
+        (DYNAMIC_OBSTACLES_PER_TILE, DYNAMIC_SLOTS_PER_OBSTACLE, 7),
+        dtype=np.float32,
+    )
+    terrain.dynamic_obstacle_specs[..., 2] = -5.0
+    terrain.dynamic_goal_mask = np.zeros(num_goals, dtype=bool)
+    return (
+        np.zeros((num_goals, 2), dtype=np.float32),
+        terrain.length * terrain.horizontal_scale / 2,
+    )
+
+
+def dynamic_hurdle_terrain(terrain, difficulty, num_goals):
+    goals, mid_y = _init_dynamic_metadata(
+        terrain, DYNAMIC_HURDLE, difficulty, num_goals
+    )
+    hurdle_height = 0.12 + 0.28 * difficulty
+    xs = np.linspace(3.2, 14.2, DYNAMIC_OBSTACLES_PER_TILE)
+    goals[0] = [1.5, mid_y]
+    for i, x in enumerate(xs):
+        terrain.dynamic_obstacle_specs[i, 0] = [
+            x,
+            mid_y,
+            hurdle_height / 2,
+            0.10,
+            1.35,
+            hurdle_height,
+            0.0,
+        ]
+        goals[i + 1] = [x - 0.45, mid_y]
+    goals[-1] = [16.5, mid_y]
+    terrain.goals = goals
+
+
+def dynamic_gap_terrain(terrain, difficulty, num_goals):
+    goals, mid_y = _init_dynamic_metadata(terrain, DYNAMIC_GAP, difficulty, num_goals)
+    pit_depth = round((0.35 + 0.45 * difficulty) / terrain.vertical_scale)
+    terrain.height_field_raw[:] = -pit_depth
+    platform_len = 0.75
+    platform_width = 1.35
+    thickness = 0.10
+    gap_size = 0.18 + 0.52 * difficulty
+    xs = np.linspace(3.1, 14.1, DYNAMIC_OBSTACLES_PER_TILE)
+    terrain.height_field_raw[: round(2.0 / terrain.horizontal_scale), :] = 0
+    terrain.height_field_raw[round(15.4 / terrain.horizontal_scale) :, :] = 0
+    goals[0] = [1.5, mid_y]
+    for i, center_x in enumerate(xs):
+        offset = (gap_size + platform_len) / 2
+        terrain.dynamic_obstacle_specs[i, 0] = [
+            center_x - offset,
+            mid_y,
+            -thickness / 2,
+            platform_len,
+            platform_width,
+            thickness,
+            0.0,
+        ]
+        terrain.dynamic_obstacle_specs[i, 1] = [
+            center_x + offset,
+            mid_y,
+            -thickness / 2,
+            platform_len,
+            platform_width,
+            thickness,
+            0.0,
+        ]
+        goals[i + 1] = [center_x + offset, mid_y]
+        terrain.dynamic_goal_mask[i + 1] = True
+    goals[-1] = [16.5, mid_y]
+    terrain.goals = goals
+
+
+def dynamic_tilted_pads_terrain(terrain, difficulty, num_goals):
+    goals, mid_y = _init_dynamic_metadata(
+        terrain, DYNAMIC_TILTED_PADS, difficulty, num_goals
+    )
+    terrain.height_field_raw[:] = -round(
+        (0.35 + 0.45 * difficulty) / terrain.vertical_scale
+    )
+    thickness = 0.10
+    xs = np.linspace(3.0, 13.5, DYNAMIC_OBSTACLES_PER_TILE)
+    ys = [mid_y + (0.25 + 0.10 * difficulty) * (-1 if i % 2 else 1) for i in range(6)]
+    terrain.height_field_raw[: round(2.0 / terrain.horizontal_scale), :] = 0
+    terrain.height_field_raw[round(14.6 / terrain.horizontal_scale) :, :] = 0
+    goals[0] = [1.5, mid_y]
+    for i, (x, y) in enumerate(zip(xs, ys)):
+        terrain.dynamic_obstacle_specs[i, 0] = [
+            x,
+            y,
+            -thickness / 2,
+            0.75,
+            1.35,
+            thickness,
+            0.0,
+        ]
+        goals[i + 1] = [x, y]
+    goals[-1] = [16.0, mid_y]
+    terrain.goals = goals
+
+
+def dynamic_step_terrain(terrain, difficulty, num_goals):
+    goals, mid_y = _init_dynamic_metadata(terrain, DYNAMIC_STEP, difficulty, num_goals)
+    terrain.height_field_raw[:] = -round(
+        (0.35 + 0.45 * difficulty) / terrain.vertical_scale
+    )
+    step_height = 0.10 + 0.22 * difficulty
+    levels = [1, 2, 3, 2, 1, 0]
+    thickness = 0.10
+    xs = np.linspace(3.0, 13.5, DYNAMIC_OBSTACLES_PER_TILE)
+    terrain.height_field_raw[: round(2.0 / terrain.horizontal_scale), :] = 0
+    terrain.height_field_raw[round(14.6 / terrain.horizontal_scale) :, :] = 0
+    goals[0] = [1.5, mid_y]
+    for i, (x, level) in enumerate(zip(xs, levels)):
+        top = level * step_height
+        terrain.dynamic_obstacle_specs[i, 0] = [
+            x,
+            mid_y,
+            top - thickness / 2,
+            0.75,
+            1.35,
+            thickness,
+            0.0,
+        ]
+        goals[i + 1] = [x, mid_y]
+    goals[-1] = [16.0, mid_y]
+    terrain.goals = goals
 
 
 def gap_terrain(terrain, gap_size, platform_size=1.0):

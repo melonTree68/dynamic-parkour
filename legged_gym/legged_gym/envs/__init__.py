@@ -31,6 +31,7 @@
 from legged_gym import LEGGED_GYM_ROOT_DIR, LEGGED_GYM_ENVS_DIR
 from legged_gym.envs.a1.a1_config import A1RoughCfg, A1RoughCfgPPO
 from .base.legged_robot import LeggedRobot
+from .a1.a1_dynamic import DynamicLeggedRobot
 from .anymal_c.anymal import Anymal
 from .anymal_c.mixed_terrains.anymal_c_rough_config import (
     AnymalCRoughCfg,
@@ -42,6 +43,7 @@ from .cassie.cassie import Cassie
 from .cassie.cassie_config import CassieRoughCfg, CassieRoughCfgPPO
 from .a1.a1_config import A1RoughCfg, A1RoughCfgPPO
 from .a1.a1_parkour_config import A1ParkourCfg, A1ParkourCfgPPO
+from .a1.a1_dynamic_config import A1DynamicParkourCfg, A1DynamicParkourCfgPPO
 from .go1.go1_config import Go1RoughCfg, Go1RoughCfgPPO
 
 import os
@@ -53,4 +55,7 @@ from legged_gym.utils.task_registry import task_registry
 # task_registry.register( "anymal_b", Anymal, AnymalBRoughCfg(), AnymalBRoughCfgPPO() )
 # task_registry.register( "cassie", Cassie, CassieRoughCfg(), CassieRoughCfgPPO() )
 task_registry.register("a1", LeggedRobot, A1ParkourCfg(), A1ParkourCfgPPO())
+task_registry.register(
+    "a1_dynamic", DynamicLeggedRobot, A1DynamicParkourCfg(), A1DynamicParkourCfgPPO()
+)
 task_registry.register("go1", LeggedRobot, Go1RoughCfg(), Go1RoughCfgPPO())
