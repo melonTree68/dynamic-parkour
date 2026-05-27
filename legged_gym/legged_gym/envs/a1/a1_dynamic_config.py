@@ -47,21 +47,21 @@ class A1DynamicParkourCfg(A1ParkourCfg):
         hurdle_height_max = [0.15, 0.40]
         hurdle_spacing = [1.2, 2.2]
 
-        gap_size = [0.18, 0.70]
+        gap_size = [0.10, 0.80]
         gap_platform_dims = [0.55, 1.35, 0.10]
         gap_spacing = [0.8, 1.5]
 
         tilted_pad_dims = [0.75, 1.35, 0.10]
         tilted_pad_spacing = [-0.1, 0.4]
 
-        step_dims = [0.75, 1.35]
-        step_height_min = [0.10, 0.20]
-        step_height_max = [0.10, 0.45]
-        step_spacing = [0.3, 1.5]
+        step_dims = [0.80, 1.45]
+        step_height_min = [0.10, 0.40]
+        step_height_max = [0.10, 0.50]
+        step_spacing = [0.1, 0.3]
 
-        hurdle_amplitude = [0.05, 0.25]
-        gap_amplitude = [0.05, 0.25]
-        tilted_pad_amplitude = [0.03, 0.20]
+        hurdle_amplitude = [0.05, 0.15]
+        gap_amplitude = [0.05, 0.30]
+        tilted_pad_amplitude = [0.15, 0.50]
         step_amplitude = [0.02, 0.12]
 
         hurdle_period_min = [2.0, 1.2]
