@@ -106,10 +106,11 @@ def play(args):
     if args.task == "a1_dynamic":
         env_cfg.terrain.terrain_dict = {
             **{name: 0.0 for name in env_cfg.terrain.terrain_dict},
-            "dynamic_hurdle": 0.25,
-            "dynamic_gap": 0.25,
-            "dynamic_tilted_pads": 0.25,
-            "dynamic_step": 0.25,
+            "dynamic_hurdle": 0.2,
+            "dynamic_gap": 0.2,
+            "dynamic_tilted_pads": 0.2,
+            "dynamic_step": 0.2,
+            "dynamic_demo": 0.2,
         }
 
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())

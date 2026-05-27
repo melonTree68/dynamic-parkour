@@ -6,6 +6,7 @@ class A1DynamicParkourCfg(A1ParkourCfg):
         num_envs = 2048
 
     class terrain(A1ParkourCfg.terrain):
+        y_range = [-0.4, 0.4]
         terrain_dict = {
             "smooth slope": 0.0,
             "rough slope up": 0.0,
@@ -27,10 +28,11 @@ class A1DynamicParkourCfg(A1ParkourCfg):
             "parkour_step": 0.0,
             "parkour_gap": 0.0,
             "demo": 0.0,
-            "dynamic_hurdle": 0.25,
-            "dynamic_gap": 0.25,
-            "dynamic_tilted_pads": 0.25,
-            "dynamic_step": 0.25,
+            "dynamic_hurdle": 0.2,
+            "dynamic_gap": 0.2,
+            "dynamic_tilted_pads": 0.2,
+            "dynamic_step": 0.2,
+            "dynamic_demo": 0.2,
         }
         terrain_proportions = list(terrain_dict.values())
 
@@ -38,13 +40,38 @@ class A1DynamicParkourCfg(A1ParkourCfg):
         num_obstacles = 6
         slots_per_obstacle = 2
         inactive_z = -5.0
-        panel_dims = [0.75, 1.35, 0.10]
+
+        hurdle_thickness = 0.10
+        hurdle_width = 1.35
+        hurdle_height_min = [0.10, 0.20]
+        hurdle_height_max = [0.15, 0.40]
+        hurdle_spacing = [1.2, 2.2]
+
+        gap_size = [0.18, 0.70]
+        gap_platform_dims = [0.55, 1.35, 0.10]
+        gap_spacing = [0.8, 1.5]
+
+        tilted_pad_dims = [0.75, 1.35, 0.10]
+        tilted_pad_spacing = [-0.1, 0.4]
+
+        step_dims = [0.75, 1.35]
+        step_height_min = [0.10, 0.20]
+        step_height_max = [0.10, 0.45]
+        step_spacing = [0.3, 1.5]
+
         hurdle_amplitude = [0.05, 0.25]
         gap_amplitude = [0.05, 0.25]
         tilted_pad_amplitude = [0.03, 0.20]
         step_amplitude = [0.02, 0.12]
-        period_min = [2.0, 1.2]
-        period_max = [3.0, 2.0]
+
+        hurdle_period_min = [2.0, 1.2]
+        hurdle_period_max = [3.0, 2.0]
+        gap_period_min = [2.0, 1.2]
+        gap_period_max = [3.0, 2.0]
+        tilted_pad_period_min = [2.0, 1.2]
+        tilted_pad_period_max = [3.0, 2.0]
+        step_period_min = [2.0, 1.2]
+        step_period_max = [3.0, 2.0]
 
     class rewards(A1ParkourCfg.rewards):
         class scales(A1ParkourCfg.rewards.scales):
