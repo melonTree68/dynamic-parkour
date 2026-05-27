@@ -63,6 +63,7 @@ class A1DynamicParkourCfg(A1ParkourCfg):
         gap_amplitude = [0.05, 0.30]
         tilted_pad_amplitude = [0.15, 0.50]
         step_amplitude = [0.02, 0.12]
+        amplitude_min_fraction = 0.8
 
         hurdle_period_min = [2.0, 1.2]
         hurdle_period_max = [3.0, 2.0]

@@ -202,9 +202,10 @@ class DynamicLeggedRobot(LeggedRobot):
             period_min = torch.where(mask, interpolate(minimum), period_min)
             period_max = torch.where(mask, interpolate(maximum), period_max)
 
+        min_fraction = dynamic_cfg.amplitude_min_fraction
         sampled_amplitude = max_amplitude * (
-            0.5
-            + 0.5
+            min_fraction
+            + (1.0 - min_fraction)
             * torch.rand(len(env_ids), self.num_dynamic_obstacles, device=self.device)
         )
         sampled_period = period_min + (period_max - period_min) * torch.rand(
