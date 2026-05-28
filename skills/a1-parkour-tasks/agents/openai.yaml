@@ -1,0 +1,4 @@
+interface:
+  display_name: "A1 Parkour Tasks"
+  short_description: "Understand, extend, and tune a1/a1_dynamic parkour tasks."
+  default_prompt: "Use this skill to explain or modify how the default a1 parkour task and derived a1_dynamic task are constructed in extreme-parkour."
