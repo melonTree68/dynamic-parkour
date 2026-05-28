@@ -60,6 +60,14 @@ class A1DynamicParkourCfg(A1ParkourCfg):
         step_height_max = [0.10, 0.50]
         step_spacing = [0.1, 0.3]
 
+        dynamic_demo_spacing = [
+            [1.0, 1.5],  # start -> hurdle
+            [1.0, 1.5],  # hurdle -> step
+            [1.5, 2.5],  # step -> gap
+            [1.5, 2.0],  # gap -> tilted pad 1
+            [-0.1, 0.4],  # tilted pad 1 -> tilted pad 2
+        ]
+
         hurdle_amplitude = [0.05, 0.20]
         gap_amplitude = [0.05, 0.30]
         tilted_pad_amplitude = [0.15, 0.50]

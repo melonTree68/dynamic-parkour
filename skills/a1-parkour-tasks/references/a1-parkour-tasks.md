@@ -232,6 +232,8 @@ Tune these values in `A1DynamicParkourCfg.dynamic_obstacles` in [a1_dynamic_conf
   - `step_amplitude`, `step_period_min`, `step_period_max`: z-translation amplitude and period ranges.
 - All dynamic obstacle types:
   - `amplitude_min_fraction`: actual amplitude is sampled as `max_amplitude * Uniform(amplitude_min_fraction, 1.0)`. This is currently `0.8`.
+- Mixed demo:
+  - `dynamic_demo_spacing`: five spacing pairs for the mixed course sequence: start to hurdle, hurdle to step, step to gap, gap to tilted pad 1, and tilted pad 1 to tilted pad 2.
 
 Smaller periods mean faster motion. `dynamic_demo` uses each obstacle's own type-specific amplitude and period settings.
 

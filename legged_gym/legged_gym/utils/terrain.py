@@ -450,29 +450,49 @@ class Terrain:
         elif choice < self.proportions[20]:
             idx = DYNAMIC_HURDLE
             dynamic_hurdle_terrain(
-                terrain, difficulty, self.num_goals, self.cfg.dynamic_obstacles, self.cfg.y_range
+                terrain,
+                difficulty,
+                self.num_goals,
+                self.cfg.dynamic_obstacles,
+                self.cfg.y_range,
             )
             self.add_roughness(terrain)
         elif choice < self.proportions[21]:
             idx = DYNAMIC_GAP
             dynamic_gap_terrain(
-                terrain, difficulty, self.num_goals, self.cfg.dynamic_obstacles, self.cfg.y_range
+                terrain,
+                difficulty,
+                self.num_goals,
+                self.cfg.dynamic_obstacles,
+                self.cfg.y_range,
             )
         elif choice < self.proportions[22]:
             idx = DYNAMIC_TILTED_PADS
             dynamic_tilted_pads_terrain(
-                terrain, difficulty, self.num_goals, self.cfg.dynamic_obstacles, self.cfg.y_range
+                terrain,
+                difficulty,
+                self.num_goals,
+                self.cfg.dynamic_obstacles,
+                self.cfg.y_range,
             )
         elif choice < self.proportions[23]:
             idx = DYNAMIC_STEP
             dynamic_step_terrain(
-                terrain, difficulty, self.num_goals, self.cfg.dynamic_obstacles, self.cfg.y_range
+                terrain,
+                difficulty,
+                self.num_goals,
+                self.cfg.dynamic_obstacles,
+                self.cfg.y_range,
             )
             self.add_roughness(terrain)
         elif choice < self.proportions[24]:
             idx = DYNAMIC_DEMO
             dynamic_demo_terrain(
-                terrain, difficulty, self.num_goals, self.cfg.dynamic_obstacles, self.cfg.y_range
+                terrain,
+                difficulty,
+                self.num_goals,
+                self.cfg.dynamic_obstacles,
+                self.cfg.y_range,
             )
             self.add_roughness(terrain)
         # np.set_printoptions(precision=2)
@@ -592,9 +612,7 @@ def _hurdle_body_height(dynamic_cfg):
 
 
 def _step_body_height(dynamic_cfg):
-    return (
-        3 * dynamic_cfg.step_height_max[1] + dynamic_cfg.step_amplitude[1] + 0.05
-    )
+    return 3 * dynamic_cfg.step_height_max[1] + dynamic_cfg.step_amplitude[1] + 0.05
 
 
 def dynamic_hurdle_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
@@ -610,15 +628,21 @@ def dynamic_hurdle_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range)
         x += np.random.uniform(*dynamic_cfg.hurdle_spacing)
         y = _dynamic_y(mid_y, y_range)
         hurdle_height = np.random.uniform(height_min, height_max)
-        _set_dynamic_slot(terrain, i, 0, DYNAMIC_HURDLE, [
-            x,
-            y,
-            hurdle_height - body_height / 2,
-            dynamic_cfg.hurdle_thickness,
-            dynamic_cfg.hurdle_width,
-            body_height,
-            0.0,
-        ])
+        _set_dynamic_slot(
+            terrain,
+            i,
+            0,
+            DYNAMIC_HURDLE,
+            [
+                x,
+                y,
+                hurdle_height - body_height / 2,
+                dynamic_cfg.hurdle_thickness,
+                dynamic_cfg.hurdle_width,
+                body_height,
+                0.0,
+            ],
+        )
         goals[i + 1] = [x - 0.45, y]
     goals[-1] = [min(x + 1.2, 17.0), mid_y]
     terrain.goals = goals
@@ -638,27 +662,41 @@ def dynamic_gap_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
         center_x = x
         offset = (gap_size + platform_len) / 2
         _carve_dynamic_slice(
-            terrain, center_x - gap_size / 2 - max_motion,
-            center_x + gap_size / 2 + max_motion, pit_depth
+            terrain,
+            center_x - gap_size / 2 - max_motion,
+            center_x + gap_size / 2 + max_motion,
+            pit_depth,
         )
-        _set_dynamic_slot(terrain, i, 0, DYNAMIC_GAP, [
-            center_x - offset,
-            y,
-            -thickness / 2,
-            platform_len,
-            platform_width,
-            thickness,
-            0.0,
-        ])
-        _set_dynamic_slot(terrain, i, 1, DYNAMIC_GAP, [
-            center_x + offset,
-            y,
-            -thickness / 2,
-            platform_len,
-            platform_width,
-            thickness,
-            0.0,
-        ])
+        _set_dynamic_slot(
+            terrain,
+            i,
+            0,
+            DYNAMIC_GAP,
+            [
+                center_x - offset,
+                y,
+                -thickness / 2,
+                platform_len,
+                platform_width,
+                thickness,
+                0.0,
+            ],
+        )
+        _set_dynamic_slot(
+            terrain,
+            i,
+            1,
+            DYNAMIC_GAP,
+            [
+                center_x + offset,
+                y,
+                -thickness / 2,
+                platform_len,
+                platform_width,
+                thickness,
+                0.0,
+            ],
+        )
         goals[i + 1] = [center_x + offset, y]
         terrain.dynamic_goal_mask[i + 1] = True
         terrain.dynamic_goal_groups[i + 1] = i
@@ -680,15 +718,21 @@ def dynamic_tilted_pads_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_r
         x += pad_len + np.random.uniform(*dynamic_cfg.tilted_pad_spacing)
         roll_sign = 1.0 if i % 2 == 0 else -1.0
         y = _dynamic_signed_y(mid_y, tilted_y_range, roll_sign)
-        _set_dynamic_slot(terrain, i, 0, DYNAMIC_TILTED_PADS, [
-            x,
-            y,
-            -thickness / 2,
-            pad_len,
-            pad_width,
-            thickness,
-            roll_sign,
-        ])
+        _set_dynamic_slot(
+            terrain,
+            i,
+            0,
+            DYNAMIC_TILTED_PADS,
+            [
+                x,
+                y,
+                -thickness / 2,
+                pad_len,
+                pad_width,
+                thickness,
+                roll_sign,
+            ],
+        )
         goals[i + 1] = [x, y]
     terrain.height_field_raw[
         round((x + pad_len / 2) / terrain.horizontal_scale) :, :
@@ -714,15 +758,21 @@ def dynamic_step_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
             top += increment
         else:
             top = max(0.0, top - increment)
-        _set_dynamic_slot(terrain, i, 0, DYNAMIC_STEP, [
-            x,
-            y,
-            top - body_height / 2,
-            step_len,
-            step_width,
-            body_height,
-            0.0,
-        ])
+        _set_dynamic_slot(
+            terrain,
+            i,
+            0,
+            DYNAMIC_STEP,
+            [
+                x,
+                y,
+                top - body_height / 2,
+                step_len,
+                step_width,
+                body_height,
+                0.0,
+            ],
+        )
         goals[i + 1] = [x, y]
     goals[-1] = [min(x + 1.2, 17.0), mid_y]
     terrain.goals = goals
@@ -731,6 +781,7 @@ def dynamic_step_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
 def dynamic_demo_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
     goals, mid_y = _init_dynamic_metadata(terrain, DYNAMIC_DEMO, difficulty, num_goals)
     pit_depth = _dynamic_pit_depth(terrain, difficulty)
+    demo_spacing = dynamic_cfg.dynamic_demo_spacing
     x = 2.0
     goals[0] = [1.5, mid_y]
 
@@ -739,12 +790,23 @@ def dynamic_demo_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
         _dynamic_lerp(dynamic_cfg.hurdle_height_max, difficulty),
     )
     hurdle_body = _hurdle_body_height(dynamic_cfg)
-    x += np.random.uniform(*dynamic_cfg.hurdle_spacing)
+    x += np.random.uniform(*demo_spacing[0])
     y = _dynamic_y(mid_y, y_range)
-    _set_dynamic_slot(terrain, 0, 0, DYNAMIC_HURDLE, [
-        x, y, hurdle_height - hurdle_body / 2,
-        dynamic_cfg.hurdle_thickness, dynamic_cfg.hurdle_width, hurdle_body, 0.0
-    ])
+    _set_dynamic_slot(
+        terrain,
+        0,
+        0,
+        DYNAMIC_HURDLE,
+        [
+            x,
+            y,
+            hurdle_height - hurdle_body / 2,
+            dynamic_cfg.hurdle_thickness,
+            dynamic_cfg.hurdle_width,
+            hurdle_body,
+            0.0,
+        ],
+    )
     goals[1] = [x - 0.45, y]
 
     step_len, step_width = dynamic_cfg.step_dims
@@ -753,28 +815,56 @@ def dynamic_demo_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
         _dynamic_lerp(dynamic_cfg.step_height_max, difficulty),
     )
     step_body = _step_body_height(dynamic_cfg)
-    x += step_len + np.random.uniform(*dynamic_cfg.step_spacing)
+    x += step_len + np.random.uniform(*demo_spacing[1])
     y = _dynamic_y(mid_y, y_range)
-    _set_dynamic_slot(terrain, 1, 0, DYNAMIC_STEP, [
-        x, y, step_height - step_body / 2, step_len, step_width, step_body, 0.0
-    ])
+    _set_dynamic_slot(
+        terrain,
+        1,
+        0,
+        DYNAMIC_STEP,
+        [x, y, step_height - step_body / 2, step_len, step_width, step_body, 0.0],
+    )
     goals[2] = [x, y]
 
     platform_len, platform_width, thickness = dynamic_cfg.gap_platform_dims
     gap_size = _dynamic_lerp(dynamic_cfg.gap_size, difficulty)
     max_motion = _dynamic_lerp(dynamic_cfg.gap_amplitude, difficulty)
-    x += gap_size + np.random.uniform(*dynamic_cfg.gap_spacing)
+    x += gap_size + np.random.uniform(*demo_spacing[2])
     y = _dynamic_y(mid_y, y_range)
     gap_offset = (gap_size + platform_len) / 2
     _carve_dynamic_slice(
         terrain, x - gap_size / 2 - max_motion, x + gap_size / 2 + max_motion, pit_depth
     )
-    _set_dynamic_slot(terrain, 2, 0, DYNAMIC_GAP, [
-        x - gap_offset, y, -thickness / 2, platform_len, platform_width, thickness, 0.0
-    ])
-    _set_dynamic_slot(terrain, 2, 1, DYNAMIC_GAP, [
-        x + gap_offset, y, -thickness / 2, platform_len, platform_width, thickness, 0.0
-    ])
+    _set_dynamic_slot(
+        terrain,
+        2,
+        0,
+        DYNAMIC_GAP,
+        [
+            x - gap_offset,
+            y,
+            -thickness / 2,
+            platform_len,
+            platform_width,
+            thickness,
+            0.0,
+        ],
+    )
+    _set_dynamic_slot(
+        terrain,
+        2,
+        1,
+        DYNAMIC_GAP,
+        [
+            x + gap_offset,
+            y,
+            -thickness / 2,
+            platform_len,
+            platform_width,
+            thickness,
+            0.0,
+        ],
+    )
     goals[3] = [x - gap_offset, y]
     goals[4] = [x + gap_offset, y]
     terrain.dynamic_goal_mask[3:5] = True
@@ -783,13 +873,17 @@ def dynamic_demo_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
     pad_len, pad_width, pad_thickness = dynamic_cfg.tilted_pad_dims
     tilted_y_range = _dynamic_tilted_pad_y_range(dynamic_cfg, y_range)
     for pad_idx, (group, goal_idx) in enumerate(((3, 5), (4, 6))):
-        x += pad_len + np.random.uniform(*dynamic_cfg.tilted_pad_spacing)
+        x += pad_len + np.random.uniform(*demo_spacing[3 + pad_idx])
         _carve_dynamic_slice(terrain, x - pad_len / 2, x + pad_len / 2, pit_depth)
         roll_sign = 1.0 if pad_idx % 2 == 0 else -1.0
         y = _dynamic_signed_y(mid_y, tilted_y_range, roll_sign)
-        _set_dynamic_slot(terrain, group, 0, DYNAMIC_TILTED_PADS, [
-            x, y, -pad_thickness / 2, pad_len, pad_width, pad_thickness, roll_sign
-        ])
+        _set_dynamic_slot(
+            terrain,
+            group,
+            0,
+            DYNAMIC_TILTED_PADS,
+            [x, y, -pad_thickness / 2, pad_len, pad_width, pad_thickness, roll_sign],
+        )
         goals[goal_idx] = [x, y]
 
     goals[-1] = [min(x + 1.2, 17.0), mid_y]

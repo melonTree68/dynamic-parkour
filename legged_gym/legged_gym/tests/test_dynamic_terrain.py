@@ -48,6 +48,7 @@ def test_dynamic_task_registration_preserves_a1_configuration():
     assert hasattr(dynamic_cfg.dynamic_obstacles, "gap_spacing")
     assert hasattr(dynamic_cfg.dynamic_obstacles, "step_height_max")
     assert hasattr(dynamic_cfg.dynamic_obstacles, "tilted_pad_y_range_coeff")
+    assert hasattr(dynamic_cfg.dynamic_obstacles, "dynamic_demo_spacing")
 
 
 def make_subterrain():
@@ -66,7 +67,13 @@ def test_dynamic_generators_create_six_crossings_and_eight_goals():
     ]
     for generator, family in generators:
         terrain = make_subterrain()
-        generator(terrain, difficulty=0.5, num_goals=8, dynamic_cfg=DYNAMIC_CFG, y_range=Y_RANGE)
+        generator(
+            terrain,
+            difficulty=0.5,
+            num_goals=8,
+            dynamic_cfg=DYNAMIC_CFG,
+            y_range=Y_RANGE,
+        )
         assert terrain.dynamic_family == family
         assert terrain.dynamic_obstacle_specs.shape == (6, 2, 7)
         assert terrain.goals.shape == (8, 2)
@@ -81,7 +88,9 @@ def test_dynamic_gap_keeps_fixed_pair_spacing_and_marks_moving_goals():
     gap_lengths = specs[:, 1, 0] - specs[:, 0, 0] - specs[:, 0, 3]
     assert np.allclose(gap_lengths, gap_lengths[0])
     assert np.count_nonzero(terrain.dynamic_goal_mask) == 6
-    assert np.all(terrain.dynamic_motion_types == np.array([[DYNAMIC_GAP, DYNAMIC_GAP]] * 6))
+    assert np.all(
+        terrain.dynamic_motion_types == np.array([[DYNAMIC_GAP, DYNAMIC_GAP]] * 6)
+    )
     assert np.array_equal(terrain.dynamic_goal_groups[1:7], np.arange(6))
     gap_centers = (specs[:, 0, 0] + specs[:, 1, 0]) / 2
     midpoint = round(((gap_centers[0] + gap_centers[1]) / 2) / terrain.horizontal_scale)
@@ -135,7 +144,11 @@ def test_dynamic_spacing_ranges_are_configurable_per_family():
     for generator, spacing, event_width, body_length in cases:
         terrain = make_subterrain()
         generator(
-            terrain, difficulty=1.0, num_goals=8, dynamic_cfg=DYNAMIC_CFG, y_range=Y_RANGE
+            terrain,
+            difficulty=1.0,
+            num_goals=8,
+            dynamic_cfg=DYNAMIC_CFG,
+            y_range=Y_RANGE,
         )
         centers = terrain.dynamic_obstacle_specs[:, 0, 0]
         sampled_spacing = np.diff(centers) - event_width - body_length
@@ -164,6 +177,44 @@ def test_dynamic_demo_has_mixed_motion_sequence_and_gap_goal_mapping():
     assert np.array_equal(terrain.dynamic_goal_groups[3:5], [2, 2])
 
 
+def test_dynamic_demo_uses_own_spacing_ranges():
+    old_spacing = DYNAMIC_CFG.dynamic_demo_spacing
+    DYNAMIC_CFG.dynamic_demo_spacing = [
+        [0.50, 0.55],
+        [0.60, 0.65],
+        [0.70, 0.75],
+        [0.80, 0.85],
+        [0.90, 0.95],
+    ]
+    try:
+        terrain = make_subterrain()
+        dynamic_demo_terrain(
+            terrain,
+            difficulty=1.0,
+            num_goals=8,
+            dynamic_cfg=DYNAMIC_CFG,
+            y_range=Y_RANGE,
+        )
+        specs = terrain.dynamic_obstacle_specs
+        gap_center = (specs[2, 0, 0] + specs[2, 1, 0]) / 2
+        centers = np.array(
+            [specs[0, 0, 0], specs[1, 0, 0], gap_center, specs[3, 0, 0], specs[4, 0, 0]]
+        )
+        sampled_spacing = np.array(
+            [
+                centers[0] - 2.0,
+                centers[1] - centers[0] - DYNAMIC_CFG.step_dims[0],
+                centers[2] - centers[1] - DYNAMIC_CFG.gap_size[1],
+                centers[3] - centers[2] - DYNAMIC_CFG.tilted_pad_dims[0],
+                centers[4] - centers[3] - DYNAMIC_CFG.tilted_pad_dims[0],
+            ]
+        )
+        for sampled, bounds in zip(sampled_spacing, DYNAMIC_CFG.dynamic_demo_spacing):
+            assert bounds[0] <= sampled <= bounds[1]
+    finally:
+        DYNAMIC_CFG.dynamic_demo_spacing = old_spacing
+
+
 def test_dynamic_tilted_pads_have_alternating_fixed_roll_signs():
     terrain = make_subterrain()
     dynamic_tilted_pads_terrain(
@@ -186,7 +237,11 @@ def test_dynamic_tilted_pad_y_range_coeff_scales_lateral_offsets():
 
         terrain = make_subterrain()
         dynamic_tilted_pads_terrain(
-            terrain, difficulty=0.5, num_goals=8, dynamic_cfg=DYNAMIC_CFG, y_range=Y_RANGE
+            terrain,
+            difficulty=0.5,
+            num_goals=8,
+            dynamic_cfg=DYNAMIC_CFG,
+            y_range=Y_RANGE,
         )
         mid_y = terrain.length * terrain.horizontal_scale / 2
         offsets = terrain.dynamic_obstacle_specs[:, 0, 1] - mid_y
@@ -194,7 +249,11 @@ def test_dynamic_tilted_pad_y_range_coeff_scales_lateral_offsets():
 
         terrain = make_subterrain()
         dynamic_demo_terrain(
-            terrain, difficulty=0.5, num_goals=8, dynamic_cfg=DYNAMIC_CFG, y_range=Y_RANGE
+            terrain,
+            difficulty=0.5,
+            num_goals=8,
+            dynamic_cfg=DYNAMIC_CFG,
+            y_range=Y_RANGE,
         )
         offsets = terrain.dynamic_obstacle_specs[3:5, 0, 1] - mid_y
         assert np.all(np.abs(offsets) <= max_offset + 1e-6)
