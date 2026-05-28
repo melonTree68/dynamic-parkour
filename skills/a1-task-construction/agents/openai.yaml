@@ -1,0 +1,4 @@
+interface:
+  display_name: "A1 Task Construction"
+  short_description: "Understand and extend the default a1 parkour task."
+  default_prompt: "Use this skill to explain or modify how the default a1 parkour task is constructed in extreme-parkour."
