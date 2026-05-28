@@ -41,15 +41,15 @@ class A1DynamicParkourCfg(A1ParkourCfg):
         slots_per_obstacle = 2
         inactive_z = -5.0
 
-        hurdle_thickness = 0.10
-        hurdle_width = 1.35
+        hurdle_thickness = 0.25  # or 0.30
+        hurdle_width = 1.10
         hurdle_height_min = [0.10, 0.20]
         hurdle_height_max = [0.15, 0.40]
         hurdle_spacing = [1.2, 2.2]
 
         gap_size = [0.10, 0.80]
-        gap_platform_dims = [0.55, 1.35, 0.10]
-        gap_spacing = [0.8, 1.5]
+        gap_platform_dims = [0.55, 1.60, 0.10]
+        gap_spacing = [1.4, 2.5]
 
         tilted_pad_dims = [0.75, 1.35, 0.10]
         tilted_pad_spacing = [-0.1, 0.4]
@@ -60,7 +60,7 @@ class A1DynamicParkourCfg(A1ParkourCfg):
         step_height_max = [0.10, 0.50]
         step_spacing = [0.1, 0.3]
 
-        hurdle_amplitude = [0.05, 0.15]
+        hurdle_amplitude = [0.05, 0.20]
         gap_amplitude = [0.05, 0.30]
         tilted_pad_amplitude = [0.15, 0.50]
         step_amplitude = [0.02, 0.12]
@@ -73,8 +73,8 @@ class A1DynamicParkourCfg(A1ParkourCfg):
         gap_period_max = [3.0, 2.0]
         tilted_pad_period_min = [2.0, 1.2]
         tilted_pad_period_max = [3.0, 2.0]
-        step_period_min = [2.0, 1.2]
-        step_period_max = [3.0, 2.0]
+        step_period_min = [2.4, 1.4]
+        step_period_max = [3.4, 2.4]
 
     class rewards(A1ParkourCfg.rewards):
         class scales(A1ParkourCfg.rewards.scales):
