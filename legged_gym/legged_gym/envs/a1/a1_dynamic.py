@@ -40,9 +40,7 @@ class DynamicLeggedRobot(LeggedRobot):
         cfg = self.cfg.dynamic_obstacles
         step_len, step_width = cfg.step_dims
         self.dynamic_assets = {
-            DYNAMIC_NONE: self.gym.create_box(
-                self.sim, *cfg.tilted_pad_dims, options
-            ),
+            DYNAMIC_NONE: self.gym.create_box(self.sim, *cfg.tilted_pad_dims, options),
             DYNAMIC_HURDLE: self.gym.create_box(
                 self.sim,
                 cfg.hurdle_thickness,
@@ -50,9 +48,7 @@ class DynamicLeggedRobot(LeggedRobot):
                 self._hurdle_body_height(),
                 options,
             ),
-            DYNAMIC_GAP: self.gym.create_box(
-                self.sim, *cfg.gap_platform_dims, options
-            ),
+            DYNAMIC_GAP: self.gym.create_box(self.sim, *cfg.gap_platform_dims, options),
             DYNAMIC_TILTED_PADS: self.gym.create_box(
                 self.sim, *cfg.tilted_pad_dims, options
             ),
@@ -171,7 +167,9 @@ class DynamicLeggedRobot(LeggedRobot):
         self.dynamic_difficulty[env_ids] = self.dynamic_difficulty_table[rows, cols]
         self.dynamic_specs[env_ids] = self.dynamic_specs_table[rows, cols]
         self.dynamic_motion_types[env_ids] = self.dynamic_motion_types_table[rows, cols]
-        self.dynamic_motion_groups[env_ids] = self.dynamic_motion_groups_table[rows, cols]
+        self.dynamic_motion_groups[env_ids] = self.dynamic_motion_groups_table[
+            rows, cols
+        ]
         self.dynamic_goal_groups[env_ids] = self.dynamic_goal_groups_table[rows, cols]
         self.dynamic_base_goals[env_ids] = self.terrain_goals[rows, cols]
         self.dynamic_dims[env_ids] = self.dynamic_specs[env_ids, ..., 3:6]
@@ -187,14 +185,30 @@ class DynamicLeggedRobot(LeggedRobot):
         period_min = torch.ones_like(max_amplitude)
         period_max = torch.ones_like(max_amplitude)
         settings = (
-            (DYNAMIC_HURDLE, dynamic_cfg.hurdle_amplitude,
-             dynamic_cfg.hurdle_period_min, dynamic_cfg.hurdle_period_max),
-            (DYNAMIC_GAP, dynamic_cfg.gap_amplitude,
-             dynamic_cfg.gap_period_min, dynamic_cfg.gap_period_max),
-            (DYNAMIC_TILTED_PADS, dynamic_cfg.tilted_pad_amplitude,
-             dynamic_cfg.tilted_pad_period_min, dynamic_cfg.tilted_pad_period_max),
-            (DYNAMIC_STEP, dynamic_cfg.step_amplitude,
-             dynamic_cfg.step_period_min, dynamic_cfg.step_period_max),
+            (
+                DYNAMIC_HURDLE,
+                dynamic_cfg.hurdle_amplitude,
+                dynamic_cfg.hurdle_period_min,
+                dynamic_cfg.hurdle_period_max,
+            ),
+            (
+                DYNAMIC_GAP,
+                dynamic_cfg.gap_amplitude,
+                dynamic_cfg.gap_period_min,
+                dynamic_cfg.gap_period_max,
+            ),
+            (
+                DYNAMIC_TILTED_PADS,
+                dynamic_cfg.tilted_pad_amplitude,
+                dynamic_cfg.tilted_pad_period_min,
+                dynamic_cfg.tilted_pad_period_max,
+            ),
+            (
+                DYNAMIC_STEP,
+                dynamic_cfg.step_amplitude,
+                dynamic_cfg.step_period_min,
+                dynamic_cfg.step_period_max,
+            ),
         )
         for motion_type, amplitude, minimum, maximum in settings:
             mask = group_types == motion_type
@@ -211,8 +225,10 @@ class DynamicLeggedRobot(LeggedRobot):
         sampled_period = period_min + (period_max - period_min) * torch.rand(
             len(env_ids), self.num_dynamic_obstacles, device=self.device
         )
-        sampled_phase = 2 * np.pi * torch.rand(
-            len(env_ids), self.num_dynamic_obstacles, device=self.device
+        sampled_phase = (
+            2
+            * np.pi
+            * torch.rand(len(env_ids), self.num_dynamic_obstacles, device=self.device)
         )
         pure_gap = self.dynamic_family[env_ids] == DYNAMIC_GAP
         if torch.any(pure_gap):
@@ -246,14 +262,11 @@ class DynamicLeggedRobot(LeggedRobot):
             * (2 * np.pi / self.dynamic_period[env_ids])
             * cos_phase
         )
-        tilted_groups = (
-            self.dynamic_motion_types[env_ids, :, 0] == DYNAMIC_TILTED_PADS
-        )
+        tilted_groups = self.dynamic_motion_types[env_ids, :, 0] == DYNAMIC_TILTED_PADS
         roll_signs = self.dynamic_specs[env_ids, :, 0, 6]
         min_roll_fraction = self.cfg.dynamic_obstacles.tilted_pad_min_roll_fraction
         absolute_roll = self.dynamic_amplitude[env_ids] * (
-            min_roll_fraction
-            + (1.0 - min_roll_fraction) * (sin_phase + 1.0) / 2
+            min_roll_fraction + (1.0 - min_roll_fraction) * (sin_phase + 1.0) / 2
         )
         roll_velocities = (
             self.dynamic_amplitude[env_ids]
@@ -273,9 +286,9 @@ class DynamicLeggedRobot(LeggedRobot):
         motion_types = self.dynamic_motion_types[env_ids]
         motion_groups = self.dynamic_motion_groups[env_ids]
         group_ids = torch.clamp(motion_groups, min=0)
-        slot_offsets = torch.gather(offsets, 1, group_ids.view(len(env_ids), -1)).view_as(
-            motion_groups
-        )
+        slot_offsets = torch.gather(
+            offsets, 1, group_ids.view(len(env_ids), -1)
+        ).view_as(motion_groups)
         slot_velocities = torch.gather(
             velocities, 1, group_ids.view(len(env_ids), -1)
         ).view_as(motion_groups)
@@ -296,7 +309,9 @@ class DynamicLeggedRobot(LeggedRobot):
         states[..., 0] += torch.where(
             translate_x, slot_offsets, torch.zeros_like(slot_offsets)
         )
-        states[..., 2] += torch.where(move_z, slot_offsets, torch.zeros_like(slot_offsets))
+        states[..., 2] += torch.where(
+            move_z, slot_offsets, torch.zeros_like(slot_offsets)
+        )
         states[..., 7] = torch.where(
             translate_x, slot_velocities, torch.zeros_like(slot_velocities)
         )
@@ -390,8 +405,10 @@ class DynamicLeggedRobot(LeggedRobot):
             )
             active = motion_types[:, slot] != DYNAMIC_NONE
             top = (
-                center[:, None, 2] + dims[:, slot, None, 2] / 2
-            ).expand(-1, points.shape[1]).clone()
+                (center[:, None, 2] + dims[:, slot, None, 2] / 2)
+                .expand(-1, points.shape[1])
+                .clone()
+            )
             tilted = motion_types[:, slot] == DYNAMIC_TILTED_PADS
             if torch.any(tilted):
                 slot_roll = roll[tilted, slot]

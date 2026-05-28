@@ -101,9 +101,7 @@ def _validate_video_args(args):
     args.video_camera_mode = args.video_camera_mode.lower()
     if args.video_camera_mode not in ("yaw", "attached"):
         raise ValueError("--video_camera_mode must be either 'yaw' or 'attached'.")
-    args.video_camera_pos = _parse_vec3_arg(
-        args.video_camera_pos, "--video_camera_pos"
-    )
+    args.video_camera_pos = _parse_vec3_arg(args.video_camera_pos, "--video_camera_pos")
     args.video_camera_target = _parse_vec3_arg(
         args.video_camera_target, "--video_camera_target"
     )
@@ -202,9 +200,7 @@ class PlayVideoRecorder:
 
         for env_id in active_ids:
             cam_pos = root_pos[env_id] + _rotate_yaw(self.camera_pos, yaw[env_id])
-            cam_target = root_pos[env_id] + _rotate_yaw(
-                self.camera_target, yaw[env_id]
-            )
+            cam_target = root_pos[env_id] + _rotate_yaw(self.camera_target, yaw[env_id])
             self.env.gym.set_camera_location(
                 self.camera_handles[env_id],
                 self.env.envs[env_id],
@@ -230,9 +226,7 @@ class PlayVideoRecorder:
                 self.camera_handles[env_id],
                 gymapi.IMAGE_COLOR,
             )
-            rgba = np.asarray(image, dtype=np.uint8).reshape(
-                self.height, self.width, 4
-            )
+            rgba = np.asarray(image, dtype=np.uint8).reshape(self.height, self.width, 4)
             bgr = cv2.cvtColor(rgba, cv2.COLOR_RGBA2BGR)
             self.writers[env_id].write(bgr)
 
@@ -402,8 +396,7 @@ def play(args):
                             ],
                             obs.detach()[
                                 :,
-                                -env_cfg.env.history_len
-                                * env_cfg.env.n_proprio :,
+                                -env_cfg.env.history_len * env_cfg.env.n_proprio :,
                             ],
                         ),
                         dim=1,
