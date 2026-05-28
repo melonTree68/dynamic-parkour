@@ -222,6 +222,7 @@ Tune these values in `A1DynamicParkourCfg.dynamic_obstacles` in [a1_dynamic_conf
 - Tilted pads:
   - `tilted_pad_dims = [x_len, y_width, z_thickness]`: pad actor dimensions.
   - `tilted_pad_spacing`: sampled x spacing between pads.
+  - `tilted_pad_y_range_coeff`: multiplies `terrain.y_range` before sampling tilted-pad lateral offsets.
   - `tilted_pad_amplitude`, `tilted_pad_period_min`, `tilted_pad_period_max`: roll amplitude and period ranges.
   - `tilted_pad_min_roll_fraction`: lower fraction of sampled roll amplitude used by the sinusoidal absolute-roll oscillation.
 - Steps:
@@ -263,6 +264,8 @@ Smaller periods mean faster motion. `dynamic_demo` uses each obstacle's own type
 - `dynamic_tilted_pads_terrain()` creates a pit foundation and alternating-sign pads. The roll sign is fixed by pad index, while the roll magnitude varies over time.
 - `dynamic_step_terrain()` samples per-transition increments and accumulates an up/down progression. Step actors are tall buried columns; placing them by top surface ensures the bottom remains at or below ground through the motion range.
 - `dynamic_demo_terrain()` emits eight goals: start, hurdle, step, gap takeoff, gap landing, pad 1, pad 2, finish.
+
+Dynamic tilted pads mirror the static `parkour_terrain()` ramp convention: the lateral offset sign is coupled to the roll sign. Positive roll has the lower side at smaller y and is shifted toward positive y; negative roll has the lower side at larger y and is shifted toward negative y. Goals use the same shifted lateral center as the pad.
 
 Tilted pad runtime uses fixed sign and positive magnitude:
 

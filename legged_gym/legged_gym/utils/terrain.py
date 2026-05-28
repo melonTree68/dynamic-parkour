@@ -556,6 +556,19 @@ def _dynamic_y(mid_y, y_range):
     return mid_y + np.random.uniform(y_range[0], y_range[1])
 
 
+def _dynamic_signed_y(mid_y, y_range, sign):
+    lower = min(abs(y_range[0]), abs(y_range[1]))
+    upper = max(abs(y_range[0]), abs(y_range[1]))
+    if y_range[0] <= 0.0 <= y_range[1]:
+        lower = 0.0
+    return mid_y + sign * np.random.uniform(lower, upper)
+
+
+def _dynamic_tilted_pad_y_range(dynamic_cfg, y_range):
+    coeff = dynamic_cfg.tilted_pad_y_range_coeff
+    return [coeff * y_range[0], coeff * y_range[1]]
+
+
 def _set_dynamic_slot(terrain, group, slot, motion_type, spec, motion_group=None):
     terrain.dynamic_obstacle_specs[group, slot] = spec
     terrain.dynamic_motion_types[group, slot] = motion_type
@@ -659,13 +672,14 @@ def dynamic_tilted_pads_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_r
     )
     terrain.height_field_raw[:] = -_dynamic_pit_depth(terrain, difficulty)
     pad_len, pad_width, thickness = dynamic_cfg.tilted_pad_dims
+    tilted_y_range = _dynamic_tilted_pad_y_range(dynamic_cfg, y_range)
     terrain.height_field_raw[: round(2.0 / terrain.horizontal_scale), :] = 0
     x = 2.0
     goals[0] = [1.5, mid_y]
     for i in range(DYNAMIC_OBSTACLES_PER_TILE):
         x += pad_len + np.random.uniform(*dynamic_cfg.tilted_pad_spacing)
-        y = _dynamic_y(mid_y, y_range)
         roll_sign = 1.0 if i % 2 == 0 else -1.0
+        y = _dynamic_signed_y(mid_y, tilted_y_range, roll_sign)
         _set_dynamic_slot(terrain, i, 0, DYNAMIC_TILTED_PADS, [
             x,
             y,
@@ -767,11 +781,12 @@ def dynamic_demo_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
     terrain.dynamic_goal_groups[3:5] = 2
 
     pad_len, pad_width, pad_thickness = dynamic_cfg.tilted_pad_dims
+    tilted_y_range = _dynamic_tilted_pad_y_range(dynamic_cfg, y_range)
     for pad_idx, (group, goal_idx) in enumerate(((3, 5), (4, 6))):
         x += pad_len + np.random.uniform(*dynamic_cfg.tilted_pad_spacing)
-        y = _dynamic_y(mid_y, y_range)
         _carve_dynamic_slice(terrain, x - pad_len / 2, x + pad_len / 2, pit_depth)
         roll_sign = 1.0 if pad_idx % 2 == 0 else -1.0
+        y = _dynamic_signed_y(mid_y, tilted_y_range, roll_sign)
         _set_dynamic_slot(terrain, group, 0, DYNAMIC_TILTED_PADS, [
             x, y, -pad_thickness / 2, pad_len, pad_width, pad_thickness, roll_sign
         ])

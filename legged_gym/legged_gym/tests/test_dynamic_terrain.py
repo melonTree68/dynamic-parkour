@@ -47,6 +47,7 @@ def test_dynamic_task_registration_preserves_a1_configuration():
     assert hasattr(dynamic_cfg.dynamic_obstacles, "hurdle_period_min")
     assert hasattr(dynamic_cfg.dynamic_obstacles, "gap_spacing")
     assert hasattr(dynamic_cfg.dynamic_obstacles, "step_height_max")
+    assert hasattr(dynamic_cfg.dynamic_obstacles, "tilted_pad_y_range_coeff")
 
 
 def make_subterrain():
@@ -154,6 +155,12 @@ def test_dynamic_demo_has_mixed_motion_sequence_and_gap_goal_mapping():
     assert types[3, 0] == DYNAMIC_TILTED_PADS
     assert types[4, 0] == DYNAMIC_TILTED_PADS
     assert np.array_equal(terrain.dynamic_obstacle_specs[3:5, 0, 6], [1.0, -1.0])
+    mid_y = terrain.length * terrain.horizontal_scale / 2
+    assert np.all(
+        (terrain.dynamic_obstacle_specs[3:5, 0, 1] - mid_y)
+        * terrain.dynamic_obstacle_specs[3:5, 0, 6]
+        >= 0.0
+    )
     assert np.array_equal(terrain.dynamic_goal_groups[3:5], [2, 2])
 
 
@@ -165,3 +172,31 @@ def test_dynamic_tilted_pads_have_alternating_fixed_roll_signs():
     assert np.array_equal(
         terrain.dynamic_obstacle_specs[:, 0, 6], [1.0, -1.0, 1.0, -1.0, 1.0, -1.0]
     )
+    mid_y = terrain.length * terrain.horizontal_scale / 2
+    y_offsets = terrain.dynamic_obstacle_specs[:, 0, 1] - mid_y
+    assert np.all(y_offsets * terrain.dynamic_obstacle_specs[:, 0, 6] >= 0.0)
+    assert np.allclose(terrain.goals[1:7, 1], terrain.dynamic_obstacle_specs[:, 0, 1])
+
+
+def test_dynamic_tilted_pad_y_range_coeff_scales_lateral_offsets():
+    old_coeff = DYNAMIC_CFG.tilted_pad_y_range_coeff
+    DYNAMIC_CFG.tilted_pad_y_range_coeff = 0.25
+    try:
+        max_offset = max(abs(Y_RANGE[0]), abs(Y_RANGE[1])) * 0.25
+
+        terrain = make_subterrain()
+        dynamic_tilted_pads_terrain(
+            terrain, difficulty=0.5, num_goals=8, dynamic_cfg=DYNAMIC_CFG, y_range=Y_RANGE
+        )
+        mid_y = terrain.length * terrain.horizontal_scale / 2
+        offsets = terrain.dynamic_obstacle_specs[:, 0, 1] - mid_y
+        assert np.all(np.abs(offsets) <= max_offset + 1e-6)
+
+        terrain = make_subterrain()
+        dynamic_demo_terrain(
+            terrain, difficulty=0.5, num_goals=8, dynamic_cfg=DYNAMIC_CFG, y_range=Y_RANGE
+        )
+        offsets = terrain.dynamic_obstacle_specs[3:5, 0, 1] - mid_y
+        assert np.all(np.abs(offsets) <= max_offset + 1e-6)
+    finally:
+        DYNAMIC_CFG.tilted_pad_y_range_coeff = old_coeff

@@ -53,6 +53,7 @@ class A1DynamicParkourCfg(A1ParkourCfg):
 
         tilted_pad_dims = [0.75, 1.35, 0.10]
         tilted_pad_spacing = [-0.1, 0.4]
+        tilted_pad_y_range_coeff = 3.0
 
         step_dims = [0.80, 1.45]
         step_height_min = [0.10, 0.40]
