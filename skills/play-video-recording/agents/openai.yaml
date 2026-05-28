@@ -1,0 +1,4 @@
+interface:
+  display_name: "Play Video Recording"
+  short_description: "Record per-env play.py videos."
+  default_prompt: "Use $play-video-recording when working on per-environment video recording in play.py."
