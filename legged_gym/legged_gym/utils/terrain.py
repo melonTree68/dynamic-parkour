@@ -665,6 +665,7 @@ def dynamic_tilted_pads_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_r
     for i in range(DYNAMIC_OBSTACLES_PER_TILE):
         x += pad_len + np.random.uniform(*dynamic_cfg.tilted_pad_spacing)
         y = _dynamic_y(mid_y, y_range)
+        roll_sign = 1.0 if i % 2 == 0 else -1.0
         _set_dynamic_slot(terrain, i, 0, DYNAMIC_TILTED_PADS, [
             x,
             y,
@@ -672,7 +673,7 @@ def dynamic_tilted_pads_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_r
             pad_len,
             pad_width,
             thickness,
-            0.0,
+            roll_sign,
         ])
         goals[i + 1] = [x, y]
     terrain.height_field_raw[
@@ -766,12 +767,13 @@ def dynamic_demo_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
     terrain.dynamic_goal_groups[3:5] = 2
 
     pad_len, pad_width, pad_thickness = dynamic_cfg.tilted_pad_dims
-    for group, goal_idx in ((3, 5), (4, 6)):
+    for pad_idx, (group, goal_idx) in enumerate(((3, 5), (4, 6))):
         x += pad_len + np.random.uniform(*dynamic_cfg.tilted_pad_spacing)
         y = _dynamic_y(mid_y, y_range)
         _carve_dynamic_slice(terrain, x - pad_len / 2, x + pad_len / 2, pit_depth)
+        roll_sign = 1.0 if pad_idx % 2 == 0 else -1.0
         _set_dynamic_slot(terrain, group, 0, DYNAMIC_TILTED_PADS, [
-            x, y, -pad_thickness / 2, pad_len, pad_width, pad_thickness, 0.0
+            x, y, -pad_thickness / 2, pad_len, pad_width, pad_thickness, roll_sign
         ])
         goals[goal_idx] = [x, y]
 

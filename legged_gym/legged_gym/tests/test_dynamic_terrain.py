@@ -153,4 +153,15 @@ def test_dynamic_demo_has_mixed_motion_sequence_and_gap_goal_mapping():
     assert np.array_equal(types[2], [DYNAMIC_GAP, DYNAMIC_GAP])
     assert types[3, 0] == DYNAMIC_TILTED_PADS
     assert types[4, 0] == DYNAMIC_TILTED_PADS
+    assert np.array_equal(terrain.dynamic_obstacle_specs[3:5, 0, 6], [1.0, -1.0])
     assert np.array_equal(terrain.dynamic_goal_groups[3:5], [2, 2])
+
+
+def test_dynamic_tilted_pads_have_alternating_fixed_roll_signs():
+    terrain = make_subterrain()
+    dynamic_tilted_pads_terrain(
+        terrain, difficulty=0.5, num_goals=8, dynamic_cfg=DYNAMIC_CFG, y_range=Y_RANGE
+    )
+    assert np.array_equal(
+        terrain.dynamic_obstacle_specs[:, 0, 6], [1.0, -1.0, 1.0, -1.0, 1.0, -1.0]
+    )

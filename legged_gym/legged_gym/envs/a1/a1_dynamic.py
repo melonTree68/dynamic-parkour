@@ -238,11 +238,32 @@ class DynamicLeggedRobot(LeggedRobot):
             2 * np.pi * self.dynamic_time[env_ids, None] / self.dynamic_period[env_ids]
             + self.dynamic_phase[env_ids]
         )
-        offsets = self.dynamic_amplitude[env_ids] * torch.sin(phase)
+        sin_phase = torch.sin(phase)
+        cos_phase = torch.cos(phase)
+        offsets = self.dynamic_amplitude[env_ids] * sin_phase
         velocities = (
             self.dynamic_amplitude[env_ids]
             * (2 * np.pi / self.dynamic_period[env_ids])
-            * torch.cos(phase)
+            * cos_phase
+        )
+        tilted_groups = (
+            self.dynamic_motion_types[env_ids, :, 0] == DYNAMIC_TILTED_PADS
+        )
+        roll_signs = self.dynamic_specs[env_ids, :, 0, 6]
+        min_roll_fraction = self.cfg.dynamic_obstacles.tilted_pad_min_roll_fraction
+        absolute_roll = self.dynamic_amplitude[env_ids] * (
+            min_roll_fraction
+            + (1.0 - min_roll_fraction) * (sin_phase + 1.0) / 2
+        )
+        roll_velocities = (
+            self.dynamic_amplitude[env_ids]
+            * (1.0 - min_roll_fraction)
+            * (np.pi / self.dynamic_period[env_ids])
+            * cos_phase
+        )
+        offsets = torch.where(tilted_groups, roll_signs * absolute_roll, offsets)
+        velocities = torch.where(
+            tilted_groups, roll_signs * roll_velocities, velocities
         )
         self.dynamic_offset[env_ids] = offsets
         self.dynamic_velocity[env_ids] = velocities
