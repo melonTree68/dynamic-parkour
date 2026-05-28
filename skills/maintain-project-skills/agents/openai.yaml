@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintain Project Skills"
+  short_description: "Keep durable knowledge in skills."
+  default_prompt: "Use $maintain-project-skills to update project-local skill documentation after meaningful changes."
