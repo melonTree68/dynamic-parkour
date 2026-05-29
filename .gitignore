@@ -6,5 +6,6 @@ isaacgym*
 /scripts/*.py
 /scripts/jobs.sh
 /scripts/*.log
+/scripts/rc.sh
 /plots/*.py
 /videos/
