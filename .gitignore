@@ -3,6 +3,8 @@ isaacgym*
 .vscode/
 *img
 
-/scripts/
-/plots/
+/scripts/*.py
+/scripts/jobs.sh
+/scripts/*.log
+/plots/*.py
 /videos/
