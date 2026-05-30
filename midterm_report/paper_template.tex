@@ -22,12 +22,10 @@
 
 \author{
    \IEEEauthorblockN{Zhijie Chen}
-   \IEEEauthorblockA{Shanghai Jiao Tong University\\
-      Email: zhijie.chen@sjtu.edu.cn}
+   \IEEEauthorblockA{Shanghai Jiao Tong University}
    \and
    \IEEEauthorblockN{Shiyi Xiao}
-   \IEEEauthorblockA{Shanghai Jiao Tong University\\
-      Email: sjtuxsy-finance-pc@sjtu.edu.cn}
+   \IEEEauthorblockA{Shanghai Jiao Tong University}
 }
 
 \maketitle
@@ -71,6 +69,7 @@ We also implemented a rollout video recorder in \texttt{play.py}. It records one
 Dynamic parkour is substantially harder to learn from scratch, so we added a pretraining stage that uses a static-terrain A1 base policy as an expert. The student policy is trained in the dynamic environment before normal RL fine-tuning. Expert action labels are computed with history encoding enabled, matching the inference path used by evaluation and play scripts. The student actor is optimized in both privileged and history-encoding modes, and the estimator is trained against privileged-state targets so that later fine-tuning resumes through the original training path.
 
 \begin{algorithm}[t]
+   \small
    \caption{DAgger-style imitation pretraining}
    \label{alg:dagger}
    \begin{algorithmic}[1]
@@ -84,7 +83,7 @@ Dynamic parkour is substantially harder to learn from scratch, so we added a pre
       \State Collect expert-driven samples into $B_E$
       \State Collect student-driven samples into $B_S$, labeled by $\pi_E$
       \EndIf
-      \State Sample balanced minibatches from $B_E$ and $B_S$ when both are nonempty
+      \State Sample balanced minibatches from $B_E$ and $B_S$
       \State Minimize $L_{\mathrm{act}}+L_{\mathrm{hist}}+L_{\mathrm{est}}$ by gradient descent
       \State Save imitation checkpoints at the normal runner interval
       \EndFor
