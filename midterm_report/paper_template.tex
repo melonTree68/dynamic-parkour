@@ -51,6 +51,8 @@ Our imitation pretraining stage follows the motivation of DAgger~\citep{ross2011
 \section{Technical Approach}
 Figure~\ref{fig:pipeline} summarizes the current pipeline. We first reproduce the original static-terrain base and distillation stages. We then train on the new \texttt{a1\_dynamic} task, which inherits the original A1 parkour configuration but replaces the terrain distribution with dynamic obstacle families. Finally, we add imitation pretraining between the static expert and dynamic base training.
 
+The improved pipeline will augment the latent environment information with dynamic obstacle state, such as current hurdle position, gap configuration, step height, or ramp angle. In the distillation stage, the depth-based policy will be trained to recover these quantities explicitly or implicitly from observations. We will decide empirically whether ROA-style latent estimation, teacher-student distillation, or a hybrid version works better for this extension, based on both performance and training stability.
+
 \begin{figure}[t]
    \centering
    \includegraphics[width=\linewidth]{figures/pipeline_diagram.pdf}

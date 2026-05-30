@@ -47,6 +47,7 @@ The Makefile should run `pdflatex` with `-synctex=1 -interaction=nonstopmode -fi
   - Dynamic obstacle families: moving hurdles, moving gap platforms, tilting pads, moving steps, and mixed dynamic demo.
   - A video recorder with yaw-following and attached camera modes.
   - DAgger imitation pretraining from a static-terrain A1 expert before dynamic base RL fine-tuning.
+- The second paragraph of the proposal's Technical Plan remains valid: the improved pipeline should augment latent environment information with dynamic obstacle state, such as hurdle position, gap configuration, step height, or ramp angle. In distillation, the depth-based policy should recover this state explicitly or implicitly, with ROA-style latent estimation, teacher-student distillation, and hybrid variants left as empirical choices.
 
 ## Valid Logs and Preliminary Values
 
