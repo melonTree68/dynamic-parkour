@@ -35,6 +35,13 @@ The base RL fine-tuning stage is the original base policy training stage, resume
 - Expert labels use `hist_encoding=True`, matching the existing play/evaluate inference path.
 - The student actor is trained in both privileged and history-encoding modes, and the estimator is trained on collected observations so later RL fine-tuning resumes through the normal training path.
 
+## Reporting Notes
+
+- For the midterm report, describe this as DAgger-style imitation pretraining from a static-terrain A1 expert before dynamic base RL fine-tuning.
+- The relevant imitation run is `legged_gym/logs/imitation-pretrain-dynamic-terrain/imitate-base-15k/`, whose `imitation_metrics.csv` reaches action loss about `0.119`, history-action loss about `0.106`, and estimator loss about `0.105` at checkpoint `964`.
+- The follow-up fine-tuning run is `legged_gym/logs/imitation-pretrain-dynamic-terrain/resume-from-base-15k/`. In the midterm-writing pass, it reached a best observed `num_waypoints_mean` of about `0.704`, compared with about `0.399` for dynamic base training from scratch.
+- Treat these values as preliminary and log-derived; rerun the plot script or recompute summaries if newer completed runs are added.
+
 ## Common Commands
 
 From `legged_gym/legged_gym/scripts` after sourcing the project runtime:

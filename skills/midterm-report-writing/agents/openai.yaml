@@ -1,0 +1,7 @@
+interface:
+  display_name: "Midterm Report Writing"
+  short_description: "Build and update the course mini-paper"
+  default_prompt: "Use $midterm-report-writing to update the dynamic-obstacle parkour midterm report."
+
+policy:
+  allow_implicit_invocation: true

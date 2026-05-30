@@ -1,188 +1,128 @@
 \documentclass[conference]{IEEEtran}
 \usepackage{times}
-
-% numbers option provides compact numerical references in the text. 
 \usepackage[numbers]{natbib}
-\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
 \usepackage[bookmarks=true]{hyperref}
 
 \pdfinfo{
-   /Author (Homer Simpson)
-   /Title  (Robots: Our new overlords)
-   /CreationDate (D:20101201120000)
-   /Subject (Robots)
-   /Keywords (Robots;Overlords)
+   /Author (Zhijie Chen and Shiyi Xiao)
+   /Title  (Dynamic-Obstacle Parkour with Quadruped Robots)
+   /CreationDate (D:20260530120000)
+   /Subject (Intelligent Robot Midterm Report)
+   /Keywords (quadruped parkour; reinforcement learning; imitation learning; dynamic obstacles)
 }
 
 \begin{document}
 
-% paper title
-\title{Template paper for the \\Robotics: Science and Systems Conference}
+\title{Dynamic-Obstacle Parkour with Quadruped Robots}
 
-% You will get a Paper-ID when submitting a pdf file to the conference system
-\author{Author Names Omitted for Anonymous Review. Paper-ID [add your ID here]}
-
-%\author{\authorblockN{Michael Shell}
-%\authorblockA{School of Electrical and\\Computer Engineering\\
-%Georgia Institute of Technology\\
-%Atlanta, Georgia 30332--0250\\
-%Email: mshell@ece.gatech.edu}
-%\and
-%\authorblockN{Homer Simpson}
-%\authorblockA{Twentieth Century Fox\\
-%Springfield, USA\\
-%Email: homer@thesimpsons.com}
-%\and
-%\authorblockN{James Kirk\\ and Montgomery Scott}
-%\authorblockA{Starfleet Academy\\
-%San Francisco, California 96678-2391\\
-%Telephone: (800) 555--1212\\
-%Fax: (888) 555--1212}}
-
-
-% avoiding spaces at the end of the author lines is not a problem with
-% conference papers because we don't use \thanks or \IEEEmembership
-
-
-% for over three affiliations, or if they all won't fit within the width
-% of the page, use this alternative format:
-% 
-%\author{\authorblockN{Michael Shell\authorrefmark{1},
-%Homer Simpson\authorrefmark{2},
-%James Kirk\authorrefmark{3}, 
-%Montgomery Scott\authorrefmark{3} and
-%Eldon Tyrell\authorrefmark{4}}
-%\authorblockA{\authorrefmark{1}School of Electrical and Computer Engineering\\
-%Georgia Institute of Technology,
-%Atlanta, Georgia 30332--0250\\ Email: mshell@ece.gatech.edu}
-%\authorblockA{\authorrefmark{2}Twentieth Century Fox, Springfield, USA\\
-%Email: homer@thesimpsons.com}
-%\authorblockA{\authorrefmark{3}Starfleet Academy, San Francisco, California 96678-2391\\
-%Telephone: (800) 555--1212, Fax: (888) 555--1212}
-%\authorblockA{\authorrefmark{4}Tyrell Inc., 123 Replicant Street, Los Angeles, California 90210--4321}}
-
+\author{
+   \IEEEauthorblockN{Zhijie Chen}
+   \IEEEauthorblockA{Shanghai Jiao Tong University\\
+      Email: zhijie.chen@sjtu.edu.cn}
+   \and
+   \IEEEauthorblockN{Shiyi Xiao}
+   \IEEEauthorblockA{Shanghai Jiao Tong University\\
+      Email: sjtuxsy-finance-pc@sjtu.edu.cn}
+}
 
 \maketitle
 
 \begin{abstract}
-The abstract goes here.
+   We present midterm progress on a research project on quadruped parkour that builds on \emph{Extreme Parkour with Legged Robots}~\citep{cheng2023parkour}. Our updated goal is to extend the original static-obstacle simulation benchmark toward dynamic parkour, where obstacle positions, support surfaces, and target waypoints change during execution. Since all current experiments are in Isaac Gym and time is limited, we drop the robust-depth-perception branch proposed earlier and focus on infrastructure and training stability for dynamic obstacles. We have implemented a dynamic A1 parkour task with scripted obstacle actors, a unified terrain-parameter interface, a video recorder for rollout inspection, and a DAgger-style imitation pretraining stage before reinforcement-learning fine-tuning. Preliminary results show that the original base pipeline reaches about $0.996$ waypoints on static terrain but only $0.399$ on dynamic terrain, while imitation-pretrained dynamic fine-tuning improves the best observed dynamic result to about $0.704$ waypoints.
 \end{abstract}
 
 \IEEEpeerreviewmaketitle
 
 \section{Introduction}
-This demo file is intended to serve as a ``starter file" for the
-Robotics: Science and Systems conference papers produced under \LaTeX\
-using IEEEtran.cls version 1.7a and later.  
+Legged parkour requires contact-rich control, rapid perception-action coupling, and robust timing around terrain discontinuities. \citet{cheng2023parkour} demonstrated that a Unitree A1 robot can traverse hurdles, gaps, ramps, and steps by training a privileged base policy in simulation and distilling it to a deployable depth-based policy. This provides a strong baseline, but the original task primarily uses static geometry.
 
-\section{Section}
+Our project asks how far this framework can be pushed when obstacles become dynamic. Compared with static parkour, dynamic-obstacle parkour requires the controller to react not only to terrain shape but also to time-varying obstacle state. This midterm report therefore emphasizes the infrastructure needed to study that question: dynamic terrain generation, scripted obstacle actors, rollout visualization, and a new imitation pretraining stage. We intentionally narrow the proposal by dropping the robust-depth-perception branch. Because the current platform is simulator-only, improvements from depth augmentation or temporal fusion would be hard to validate against real sensing artifacts within the remaining course schedule.
 
-Section text here. 
+\section{Related Work}
+Recent legged-locomotion systems combine reinforcement learning, privileged training signals, and onboard sensing to traverse challenging terrain~\citep{kumar2021rma,agarwal2022legged,miki2022learning}. The baseline of \citet{cheng2023parkour} is closest to our project: it trains a privileged parkour policy and then distills it to depth input. We retain this staged structure and modify the environment and training initialization rather than designing a new controller from scratch.
 
-\subsection{Subsection Heading Here}
-Subsection text here.
+Our imitation pretraining stage follows the motivation of DAgger~\citep{ross2011dagger}: policies trained only on expert-state distributions can fail after their own early mistakes, so the learner should also train on states induced by its current behavior. We use this idea before PPO-style base fine-tuning~\citep{schulman2017ppo}. The simulator implementation uses Isaac Gym~\citep{makoviychuk2021isaacgym}, allowing many parallel dynamic parkour environments on GPU.
 
-\subsubsection{Subsubsection Heading Here}
-Subsubsection text here.
+\section{Technical Approach}
+Figure~\ref{fig:pipeline} summarizes the current pipeline. We first reproduce the original static-terrain base and distillation stages. We then train on the new \texttt{a1\_dynamic} task, which inherits the original A1 parkour configuration but replaces the terrain distribution with dynamic obstacle families. Finally, we add imitation pretraining between the static expert and dynamic base training.
 
+\begin{figure}[t]
+   \centering
+   \includegraphics[width=\linewidth]{figures/pipeline_diagram.pdf}
+   \caption{Current training pipeline. A static-terrain expert initializes dynamic-obstacle learning through DAgger imitation pretraining, after which the policy is fine-tuned by the original base RL stage and later prepared for camera distillation.}
+   \label{fig:pipeline}
+\end{figure}
 
-\section{RSS citations}
+\subsection{Dynamic Parkour Infrastructure}
+The new task \texttt{a1\_dynamic} is registered separately from the original \texttt{a1} task. Its terrain configuration exposes a single dynamic-obstacle interface for obstacle counts, dimensions, amplitudes, periods, spacing, and difficulty-interpolated ranges. The implemented families include moving hurdles, moving gap platforms, tilting pads, moving steps, and a mixed dynamic-demo track. Terrain generation stores per-tile dynamic metadata, including obstacle pose specifications, motion groups, goal groups, and terrain difficulty.
 
-Please make sure to include \verb!natbib.sty! and to use the
-\verb!plainnat.bst! bibliography style. \verb!natbib! provides additional
-citation commands, most usefully \verb!\citet!. For example, rather than the
-awkward construction 
+At runtime, dynamic obstacles are Isaac Gym box actors with gravity disabled. The environment updates their root states before physics steps using scripted sinusoidal translations or rotations. Hurdles and gap platforms translate along the forward axis, steps move vertically, and tilted pads rotate about roll. Height sampling is extended so the privileged terrain observation includes both static height-field samples and the current top surfaces of dynamic actors. Dynamic waypoints are also updated when a goal is tied to a moving obstacle, so the policy is trained against the current traversable target.
 
-{\small
-\begin{verbatim}
-\cite{kalman1960new} demonstrated...
-\end{verbatim}
-}
+We also implemented a rollout video recorder in \texttt{play.py}. It records one MP4 per environment and supports two camera modes: a yaw-following mode that tracks heading without inheriting roll or pitch, and an attached mode that follows the robot body transform. This has been useful for diagnosing dynamic-obstacle failures such as late takeoff, unstable landings, and poor timing around moving support surfaces.
 
-\noindent
-rendered as ``\cite{kalman1960new} demonstrated...,''
-or the
-inconvenient 
+\subsection{DAgger Imitation Pretraining}
+Dynamic parkour is substantially harder to learn from scratch, so we added a pretraining stage that uses a static-terrain A1 base policy as an expert. The student policy is trained in the dynamic environment before normal RL fine-tuning. Expert action labels are computed with history encoding enabled, matching the inference path used by evaluation and play scripts. The student actor is optimized in both privileged and history-encoding modes, and the estimator is trained against privileged-state targets so that later fine-tuning resumes through the original training path.
 
-{\small
-\begin{verbatim}
-Kalman \cite{kalman1960new} 
-demonstrated...
-\end{verbatim}
-}
+\begin{figure}[t]
+   \small
+   \begin{tabbing}
+      \hspace{0.03in}\=\hspace{0.19in}\=\hspace{0.19in}\=\kill
+      \textbf{Input:} static expert $\pi_E$, dynamic env, student $\pi_\theta$\\
+      \textbf{Initialize:} teacher replay $B_E$, student replay $B_S$\\
+      \textbf{for} iteration $k=0,\ldots,K-1$ \textbf{do}\\
+      \> \textbf{if} $k$ is in BC warmup \textbf{then}\\
+      \>\> collect observations driven by $\pi_E$ and store $(o,\pi_E(o))$ in $B_E$\\
+      \> \textbf{else}\\
+      \>\> collect expert-driven samples into $B_E$\\
+      \>\> collect student-driven samples into $B_S$, labeled by $\pi_E$\\
+      \> \textbf{end if}\\
+      \> sample balanced minibatches from $B_E$ and $B_S$ when both are nonempty\\
+      \> minimize $L_{\mathrm{act}}+L_{\mathrm{hist}}+L_{\mathrm{est}}$ by gradient descent\\
+      \> save imitation checkpoints at the normal runner interval\\
+      \textbf{end for}\\
+      \textbf{return} $\pi_\theta$ for dynamic base RL fine-tuning
+   \end{tabbing}
+   \caption{Pseudocode for our DAgger-style imitation pretraining implementation.}
+   \label{fig:dagger}
+\end{figure}
 
-\noindent
-rendered as 
-``Kalman \cite{kalman1960new} demonstrated...'', 
-one can
-write 
+\section{Preliminary Experiments and Results}
+We compare runs from the original static terrain, the original pipeline applied to dynamic terrain, and the new imitation-pretrained dynamic pipeline. The reported metric is the mean number of waypoints reached during evaluation, where higher values indicate better parkour progress through the track. Training curves are shown in Figure~\ref{fig:curves}, and the best observed checkpoint values are summarized in Table~\ref{tab:results}.
 
-{\small
-\begin{verbatim}
-\citet{kalman1960new} demonstrated... 
-\end{verbatim}
-}
-\noindent
-which renders as ``\citet{kalman1960new} demonstrated...'' and is 
-both easy to write and much easier to read.
-  
-\subsection{RSS Hyperlinks}
+\begin{figure}[t]
+   \centering
+   \includegraphics[width=\linewidth]{figures/training_curves.pdf}
+   \caption{Smoothed preliminary evaluation curves. The original base pipeline transfers poorly from static to dynamic terrain, while DAgger imitation pretraining gives a better starting point for dynamic RL fine-tuning.}
+   \label{fig:curves}
+\end{figure}
 
-This year, we would like to use the ability of PDF viewers to interpret
-hyperlinks, specifically to allow each reference in the bibliography to be a
-link to an online version of the reference. 
-As an example, if you were to cite ``Passive Dynamic Walking''
-\cite{McGeer01041990}, the entry in the bibtex would read:
+\begin{table}[t]
+   \centering
+   \small
+   \caption{Best observed preliminary results from available logs. Distillation on dynamic terrain is still incomplete.}
+   \label{tab:results}
+   \begin{tabular}{lccc}
+      \toprule
+      Run                   & Checkpoint & Waypoints & Reward \\
+      \midrule
+      Static base           & 9500       & 0.996     & 18.73  \\
+      Static distill        & 10000      & 0.936     & 18.26  \\
+      Dynamic base          & 38500      & 0.399     & 9.33   \\
+      Dynamic distill       & 7000       & 0.192     & 8.51   \\
+      DAgger + dynamic base & 17500      & 0.704     & 19.35  \\
+      \bottomrule
+   \end{tabular}
+\end{table}
 
-{\small
-\begin{verbatim}
-@article{McGeer01041990,
-  author = {McGeer, Tad}, 
-  title = {\href{http://ijr.sagepub.com/content/9/2/62.abstract}{Passive Dynamic Walking}}, 
-  volume = {9}, 
-  number = {2}, 
-  pages = {62-82}, 
-  year = {1990}, 
-  doi = {10.1177/027836499000900206}, 
-  URL = {http://ijr.sagepub.com/content/9/2/62.abstract}, 
-  eprint = {http://ijr.sagepub.com/content/9/2/62.full.pdf+html}, 
-  journal = {The International Journal of Robotics Research}
-}
-\end{verbatim}
-}
-\noindent
-and the entry in the compiled PDF would look like:
+These results support two observations. First, the reproduced static-terrain pipeline behaves as expected, reaching nearly one waypoint on average in the available evaluation logs. Second, directly applying the original base-training pipeline to dynamic terrain is much less effective, plateauing around $0.4$ waypoints despite a longer run. The imitation-pretrained dynamic run reaches about $0.704$ waypoints, suggesting that a static expert can provide useful initialization even under distribution shift. The dynamic distillation stage is not yet a fair final comparison because that run has not completed.
 
-\def\tmplabel#1{[#1]}
-
-\begin{enumerate}
-\item[\tmplabel{1}] Tad McGeer. \href{http://ijr.sagepub.com/content/9/2/62.abstract}{Passive Dynamic
-Walking}. {\em The International Journal of Robotics Research}, 9(2):62--82,
-1990.
-\end{enumerate}
-%
-where the title of the article is a link that takes you to the article on IJRR's website. 
-
-
-Linking cited articles will not always be possible, especially for
-older articles. There are also often several versions of papers
-online: authors are free to decide what to use as the link destination
-yet we strongly encourage to link to archival or publisher sites
-(such as IEEE Xplore or Sage Journals).  We encourage all authors to use this feature to
-the extent possible.
-
-\section{Conclusion} 
-\label{sec:conclusion}
-
-The conclusion goes here.
-
-\section*{Acknowledgments}
-
-%% Use plainnat to work nicely with natbib. 
+\section{Remaining Plan}
+The next step is to finish longer dynamic base and distillation runs, then evaluate policies by dynamic obstacle family rather than only by aggregate waypoint count. We will also use the video recorder to categorize failure modes, especially mistimed takeoff, obstacle collision, and unstable landing. If time permits, we will add a small ablation comparing DAgger pretraining against direct static-policy initialization and offline behavior cloning. The final report will focus on whether imitation pretraining consistently improves dynamic parkour learning and on which obstacle families remain bottlenecks.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
 
 \end{document}
-
-
