@@ -55,7 +55,7 @@ The improved pipeline will augment the latent environment information with dynam
 
 \begin{figure}[t]
    \centering
-   \includegraphics[width=\linewidth]{figures/pipeline_diagram.pdf}
+   \includegraphics[width=\linewidth,trim=0 2cm 0 0,clip]{figures/pipeline_diagram.pdf}
    \caption{Current training pipeline. A static-terrain expert initializes dynamic-obstacle learning through DAgger imitation pretraining, after which the policy is fine-tuned by the original base RL stage and later prepared for camera distillation.}
    \label{fig:pipeline}
 \end{figure}
