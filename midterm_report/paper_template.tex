@@ -4,6 +4,8 @@
 \usepackage{graphicx}
 \usepackage{booktabs}
 \usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 \usepackage[bookmarks=true]{hyperref}
 
 \pdfinfo{
@@ -66,28 +68,27 @@ We also implemented a rollout video recorder in \texttt{play.py}. It records one
 \subsection{DAgger Imitation Pretraining}
 Dynamic parkour is substantially harder to learn from scratch, so we added a pretraining stage that uses a static-terrain A1 base policy as an expert. The student policy is trained in the dynamic environment before normal RL fine-tuning. Expert action labels are computed with history encoding enabled, matching the inference path used by evaluation and play scripts. The student actor is optimized in both privileged and history-encoding modes, and the estimator is trained against privileged-state targets so that later fine-tuning resumes through the original training path.
 
-\begin{figure}[t]
-   \small
-   \begin{tabbing}
-      \hspace{0.03in}\=\hspace{0.19in}\=\hspace{0.19in}\=\kill
-      \textbf{Input:} static expert $\pi_E$, dynamic env, student $\pi_\theta$\\
-      \textbf{Initialize:} teacher replay $B_E$, student replay $B_S$\\
-      \textbf{for} iteration $k=0,\ldots,K-1$ \textbf{do}\\
-      \> \textbf{if} $k$ is in BC warmup \textbf{then}\\
-      \>\> collect observations driven by $\pi_E$ and store $(o,\pi_E(o))$ in $B_E$\\
-      \> \textbf{else}\\
-      \>\> collect expert-driven samples into $B_E$\\
-      \>\> collect student-driven samples into $B_S$, labeled by $\pi_E$\\
-      \> \textbf{end if}\\
-      \> sample balanced minibatches from $B_E$ and $B_S$ when both are nonempty\\
-      \> minimize $L_{\mathrm{act}}+L_{\mathrm{hist}}+L_{\mathrm{est}}$ by gradient descent\\
-      \> save imitation checkpoints at the normal runner interval\\
-      \textbf{end for}\\
-      \textbf{return} $\pi_\theta$ for dynamic base RL fine-tuning
-   \end{tabbing}
-   \caption{Pseudocode for our DAgger-style imitation pretraining implementation.}
-   \label{fig:dagger}
-\end{figure}
+\begin{algorithm}[t]
+   \caption{DAgger-style imitation pretraining}
+   \label{alg:dagger}
+   \begin{algorithmic}[1]
+      \Require static expert $\pi_E$, dynamic environment, student $\pi_\theta$
+      \State Initialize teacher replay $B_E$ and student replay $B_S$
+      \For{$k=0,\ldots,K-1$}
+      \If{$k$ is in BC warmup}
+      \State Collect observations driven by $\pi_E$
+      \State Store $(o,\pi_E(o))$ in $B_E$
+      \Else
+      \State Collect expert-driven samples into $B_E$
+      \State Collect student-driven samples into $B_S$, labeled by $\pi_E$
+      \EndIf
+      \State Sample balanced minibatches from $B_E$ and $B_S$ when both are nonempty
+      \State Minimize $L_{\mathrm{act}}+L_{\mathrm{hist}}+L_{\mathrm{est}}$ by gradient descent
+      \State Save imitation checkpoints at the normal runner interval
+      \EndFor
+      \State \Return $\pi_\theta$ for dynamic base RL fine-tuning
+   \end{algorithmic}
+\end{algorithm}
 
 \section{Preliminary Experiments and Results}
 We compare runs from the original static terrain, the original pipeline applied to dynamic terrain, and the new imitation-pretrained dynamic pipeline. The reported metric is the mean number of waypoints reached during evaluation, where higher values indicate better parkour progress through the track. Training curves are shown in Figure~\ref{fig:curves}, and the best observed checkpoint values are summarized in Table~\ref{tab:results}.
@@ -101,7 +102,6 @@ We compare runs from the original static terrain, the original pipeline applied 
 
 \begin{table}[t]
    \centering
-   \small
    \caption{Best observed preliminary results from available logs. Distillation on dynamic terrain is still incomplete.}
    \label{tab:results}
    \begin{tabular}{lccc}

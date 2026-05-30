@@ -19,6 +19,7 @@ Use this skill for the course midterm report under `midterm_report/`. The report
 - Emails: `zhijie.chen@sjtu.edu.cn`, `sjtuxsy-finance-pc@sjtu.edu.cn`.
 - Do not label equal contribution.
 - Use the RSS/IEEE template style with `natbib` and `plainnat`.
+- Use `algorithm` and `algpseudocode` for pseudocode blocks.
 - Build through GNU Make from `midterm_report/`:
 
 ```bash
