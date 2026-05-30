@@ -1,3 +1,5 @@
+.DS_Store
+
 isaacgym*
 .ipynb_checkpoints/
 .vscode/
