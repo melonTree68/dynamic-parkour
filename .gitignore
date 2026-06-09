@@ -3,6 +3,7 @@ isaacgym*
 .vscode/
 *img
 
+/AGENTS.md
 /scripts/*.py
 /scripts/jobs.sh
 /scripts/*.log
