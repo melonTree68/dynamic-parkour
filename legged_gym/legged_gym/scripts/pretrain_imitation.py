@@ -408,7 +408,7 @@ def pretrain(args):
     if args.max_iterations is not None:
         num_iterations = args.max_iterations
     else:
-        num_iterations = train_cfg.runner.max_iterations
+        num_iterations = args.imitation_iterations
 
     for it in range(num_iterations):
         start = time.time()
@@ -454,7 +454,7 @@ def pretrain(args):
 
         losses = _train_imitation_epoch(student_runner, replay_buffer, train_cfg)
         student_runner.current_learning_iteration = it
-        if it % student_runner.save_interval == 0 or it == num_iterations - 1:
+        if it % args.imitation_save_interval == 0 or it == num_iterations - 1:
             student_runner.save(os.path.join(log_dir, f"model_{it}.pt"))
 
         _log_iteration(

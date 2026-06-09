@@ -23,7 +23,8 @@ The base RL fine-tuning stage is the original base policy training stage, resume
 - Use `legged_gym/legged_gym/scripts/pretrain_imitation.py` for imitation pretraining.
 - Use `scripts/pretrain_imitation.sh` as the project command record for the imitation pretraining stage and the following base RL fine-tune command.
 - The default expert is the latest checkpoint under `legged_gym/logs/original-pipeline-static-terrain/base`.
-- Student initialization defaults to `scratch`; use `--student_init expert` only when intentionally comparing to direct static-policy fine-tuning.
+- Student initialization defaults to `expert`; use `--student_init scratch` only when intentionally testing whether DAgger can recover without a static-policy initialization.
+- Default imitation length is `500` iterations, and default imitation checkpoint interval is `50` iterations via `--imitation_save_interval`.
 - Imitation checkpoints are saved as normal `model_*.pt` files under `legged_gym/logs/<proj_name>/<exptid>/` and can be consumed by `train.py --resume`.
 - Metrics are appended to `imitation_metrics.csv` in the run directory and include only imitation-learning metrics such as action imitation loss, history-branch imitation loss, estimator loss, replay sizes, and teacher/student sample counts.
 
@@ -34,6 +35,7 @@ The base RL fine-tuning stage is the original base policy training stage, resume
 - During DAgger updates, replay batches use a 1:1 split between teacher-observation and student-observation samples when both partitions are non-empty.
 - Expert labels use `hist_encoding=True`, matching the existing play/evaluate inference path.
 - The student actor is trained in both privileged and history-encoding modes, and the estimator is trained on collected observations so later RL fine-tuning resumes through the normal training path.
+- Existing `imitate-base-15k` logs show rapid early convergence: action imitation loss reached about `0.5` by iteration `48`, `0.3` by `94`, `0.2` by `215`, and `0.15` by `429`. Treat `300-500` iterations as the normal first range before evaluating or resuming base RL fine-tuning; extend only if imitation loss is still materially improving.
 
 ## Common Commands
 

@@ -318,7 +318,7 @@ def get_args():
         {
             "name": "--student_init",
             "type": str,
-            "default": "scratch",
+            "default": "expert",
             "help": "Student initialization for imitation pretraining: scratch or expert.",
         },
         {
@@ -332,6 +332,18 @@ def get_args():
             "type": int,
             "default": 200000,
             "help": "Maximum imitation samples retained per replay source.",
+        },
+        {
+            "name": "--imitation_iterations",
+            "type": int,
+            "default": 500,
+            "help": "Default number of imitation pretraining iterations when --max_iterations is not set.",
+        },
+        {
+            "name": "--imitation_save_interval",
+            "type": int,
+            "default": 50,
+            "help": "Checkpoint interval used only by imitation pretraining.",
         },
         {"name": "--exptid", "type": str, "help": "exptid"},
         {"name": "--resumeid", "type": str, "help": "exptid"},
