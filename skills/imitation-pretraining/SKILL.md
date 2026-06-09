@@ -27,6 +27,7 @@ The base RL fine-tuning stage is the original base policy training stage, resume
 - Default imitation length is `500` iterations, and default imitation checkpoint interval is `50` iterations via `--imitation_save_interval`.
 - Imitation checkpoints are saved as normal `model_*.pt` files under `legged_gym/logs/<proj_name>/<exptid>/` and can be consumed by `train.py --resume`.
 - Metrics are appended to `imitation_metrics.csv` in the run directory and include only imitation-learning metrics such as action imitation loss, history-branch imitation loss, estimator loss, replay sizes, and teacher/student sample counts.
+- Use `plots/plot_imitation_metrics.py` to plot the imitation-only CSV metrics.
 
 ## Design Notes
 
