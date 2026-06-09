@@ -8,5 +8,7 @@ isaacgym*
 /scripts/jobs.sh
 /scripts/*.log
 /scripts/rc.sh
+/scripts/play.sh
+/scripts/pretrain_imitation.sh
 /plots/*.py
 /videos/
