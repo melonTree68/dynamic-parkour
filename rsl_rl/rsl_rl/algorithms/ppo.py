@@ -115,8 +115,18 @@ class PPO:
         self.use_clipped_value_loss = use_clipped_value_loss
 
         # Adaptation
-        self.hist_encoder_optimizer = optim.Adam(
-            self.actor_critic.actor.history_encoder.parameters(), lr=learning_rate
+        hist_encoder_params = list(self.actor_critic.actor.history_encoder.parameters())
+        if self.actor_critic.actor.dynamic_history_encoder is not None:
+            hist_encoder_params += list(
+                self.actor_critic.actor.dynamic_history_encoder.parameters()
+            )
+        self.hist_encoder_optimizer = optim.Adam(hist_encoder_params, lr=learning_rate)
+        dynamic_env_latent_cfg = kwargs.get("dynamic_env_latent_cfg")
+        self.dynamic_env_roa_loss_weight = getattr(
+            dynamic_env_latent_cfg, "roa_loss_weight", 0.0
+        )
+        self.dynamic_env_teacher_student_loss_weight = getattr(
+            dynamic_env_latent_cfg, "teacher_student_loss_weight", 0.0
         )
         self.priv_reg_coef_schedual = priv_reg_coef_schedual
         self.counter = 0
@@ -232,6 +242,7 @@ class PPO:
         mean_discriminator_loss = 0
         mean_discriminator_acc = 0
         mean_priv_reg_loss = 0
+        mean_dynamic_env_roa_loss = 0
         if self.actor_critic.is_recurrent:
             generator = self.storage.reccurent_mini_batch_generator(
                 self.num_mini_batches, self.num_learning_epochs
@@ -274,6 +285,9 @@ class PPO:
                 hist_latent_batch = self.actor_critic.actor.infer_hist_latent(obs_batch)
             priv_reg_loss = (
                 (priv_latent_batch - hist_latent_batch.detach()).norm(p=2, dim=1).mean()
+            )
+            dynamic_env_roa_loss = self._dynamic_env_recovery_loss(
+                obs_batch, mode="roa"
             )
             priv_reg_stage = min(
                 max((self.counter - self.priv_reg_coef_schedual[2]), 0)
@@ -358,6 +372,7 @@ class PPO:
                 + self.value_loss_coef * value_loss
                 - self.entropy_coef * entropy_batch.mean()
                 + priv_reg_coef * priv_reg_loss
+                + self.dynamic_env_roa_loss_weight * dynamic_env_roa_loss
             )
             # loss = self.teacher_alpha * imitation_loss + (1 - self.teacher_alpha) * loss
 
@@ -371,6 +386,7 @@ class PPO:
             mean_surrogate_loss += surrogate_loss.item()
             mean_estimator_loss += estimator_loss.item()
             mean_priv_reg_loss += priv_reg_loss.item()
+            mean_dynamic_env_roa_loss += dynamic_env_roa_loss.item()
             mean_discriminator_loss += 0
             mean_discriminator_acc += 0
 
@@ -379,6 +395,7 @@ class PPO:
         mean_surrogate_loss /= num_updates
         mean_estimator_loss /= num_updates
         mean_priv_reg_loss /= num_updates
+        mean_dynamic_env_roa_loss /= num_updates
         mean_discriminator_loss /= num_updates
         mean_discriminator_acc /= num_updates
         self.storage.clear()
@@ -391,10 +408,12 @@ class PPO:
             mean_discriminator_acc,
             mean_priv_reg_loss,
             priv_reg_coef,
+            mean_dynamic_env_roa_loss,
         )
 
     def update_dagger(self):
         mean_hist_latent_loss = 0
+        mean_dynamic_env_roa_loss = 0
         if self.actor_critic.is_recurrent:
             generator = self.storage.reccurent_mini_batch_generator(
                 self.num_mini_batches, self.num_learning_epochs
@@ -431,19 +450,63 @@ class PPO:
             hist_latent_loss = (
                 (priv_latent_batch.detach() - hist_latent_batch).norm(p=2, dim=1).mean()
             )
+            dynamic_env_roa_loss = self._dynamic_env_recovery_loss(
+                obs_batch, mode="roa"
+            )
+            total_hist_loss = (
+                hist_latent_loss
+                + self.dynamic_env_roa_loss_weight * dynamic_env_roa_loss
+            )
             self.hist_encoder_optimizer.zero_grad()
-            hist_latent_loss.backward()
+            total_hist_loss.backward()
             nn.utils.clip_grad_norm_(
                 self.actor_critic.actor.history_encoder.parameters(), self.max_grad_norm
             )
+            if self.actor_critic.actor.dynamic_history_encoder is not None:
+                nn.utils.clip_grad_norm_(
+                    self.actor_critic.actor.dynamic_history_encoder.parameters(),
+                    self.max_grad_norm,
+                )
             self.hist_encoder_optimizer.step()
 
             mean_hist_latent_loss += hist_latent_loss.item()
+            mean_dynamic_env_roa_loss += dynamic_env_roa_loss.item()
         num_updates = self.num_learning_epochs * self.num_mini_batches
         mean_hist_latent_loss /= num_updates
+        mean_dynamic_env_roa_loss /= num_updates
         self.storage.clear()
         self.update_counter()
-        return mean_hist_latent_loss
+        return mean_hist_latent_loss, mean_dynamic_env_roa_loss
+
+    def _dynamic_env_recovery_loss(self, obs_batch, mode):
+        actor = self.actor_critic.actor
+        if actor.num_dynamic_env_latent == 0:
+            return obs_batch.new_tensor(0.0)
+        mask = actor.dynamic_env_recovery_mask(obs_batch, mode)
+        if not torch.any(mask):
+            return obs_batch.new_tensor(0.0)
+        target = actor.infer_priv_dynamic_env_latent(obs_batch).detach()
+        if mode == "roa":
+            prediction = actor.infer_hist_dynamic_env_latent(obs_batch)
+        else:
+            return obs_batch.new_tensor(0.0)
+        diff = (prediction - target).pow(2) * mask.float()
+        return diff.sum() / mask.float().sum().clamp(min=1.0)
+
+    def _depth_dynamic_env_loss(
+        self, obs_batch, dynamic_env_student_batch, dynamic_env_teacher_batch
+    ):
+        if dynamic_env_student_batch is None or dynamic_env_teacher_batch is None:
+            return obs_batch.new_tensor(0.0)
+        actor = self.depth_actor
+        if actor.num_dynamic_env_latent == 0:
+            return obs_batch.new_tensor(0.0)
+        mask = actor.dynamic_env_recovery_mask(obs_batch, "teacher_student")
+        if not torch.any(mask):
+            return obs_batch.new_tensor(0.0)
+        diff = (dynamic_env_student_batch - dynamic_env_teacher_batch.detach()).pow(2)
+        diff = diff * mask.float()
+        return diff.sum() / mask.float().sum().clamp(min=1.0)
 
     def update_depth_encoder(self, depth_latent_batch, scandots_latent_batch):
         # Depth encoder ditillation
@@ -469,6 +532,9 @@ class PPO:
         actions_teacher_batch,
         yaw_student_batch,
         yaw_teacher_batch,
+        obs_batch=None,
+        dynamic_env_student_batch=None,
+        dynamic_env_teacher_batch=None,
     ):
         if self.if_depth:
             depth_actor_loss = (
@@ -480,13 +546,23 @@ class PPO:
                 (yaw_teacher_batch.detach() - yaw_student_batch).norm(p=2, dim=1).mean()
             )
 
-            loss = depth_actor_loss + yaw_loss
+            if obs_batch is None:
+                dynamic_env_loss = yaw_student_batch.new_tensor(0.0)
+            else:
+                dynamic_env_loss = self._depth_dynamic_env_loss(
+                    obs_batch, dynamic_env_student_batch, dynamic_env_teacher_batch
+                )
+            loss = (
+                depth_actor_loss
+                + yaw_loss
+                + self.dynamic_env_teacher_student_loss_weight * dynamic_env_loss
+            )
 
             self.depth_actor_optimizer.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(self.depth_actor.parameters(), self.max_grad_norm)
             self.depth_actor_optimizer.step()
-            return depth_actor_loss.item(), yaw_loss.item()
+            return depth_actor_loss.item(), yaw_loss.item(), dynamic_env_loss.item()
 
     def update_depth_both(
         self,

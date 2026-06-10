@@ -38,6 +38,15 @@ from torch.nn.modules import rnn
 from torch.nn.modules.activation import ReLU
 
 
+DYNAMIC_ENV_GROUP_DIM = 15
+DYNAMIC_ENV_TYPE_COLUMNS = {
+    "hurdle": 1,
+    "gap": 2,
+    "step": 3,
+    "tilted_pad": 4,
+}
+
+
 class StateHistoryEncoder(nn.Module):
     def __init__(
         self, activation_fn, input_size, tsteps, output_size, tanh_encoder_output=False
@@ -151,6 +160,8 @@ class Actor(nn.Module):
         num_hist,
         activation,
         tanh_encoder_output=False,
+        num_dynamic_env_latent=0,
+        dynamic_env_latent_cfg=None,
     ) -> None:
         super().__init__()
         # prop -> scan -> priv_explicit -> priv_latent -> hist
@@ -161,6 +172,16 @@ class Actor(nn.Module):
         self.num_actions = num_actions
         self.num_priv_latent = num_priv_latent
         self.num_priv_explicit = num_priv_explicit
+        self.num_dynamic_env_latent = num_dynamic_env_latent
+        self.dynamic_env_group_dim = DYNAMIC_ENV_GROUP_DIM
+        self.dynamic_env_num_groups = (
+            num_dynamic_env_latent // self.dynamic_env_group_dim
+            if num_dynamic_env_latent > 0
+            else 0
+        )
+        self.dynamic_env_recovery_modes = self._parse_dynamic_recovery_modes(
+            dynamic_env_latent_cfg
+        )
         self.if_scan_encode = scan_encoder_dims is not None and num_scan > 0
 
         if len(priv_encoder_dims) > 0:
@@ -181,6 +202,12 @@ class Actor(nn.Module):
         self.history_encoder = StateHistoryEncoder(
             activation, num_prop, num_hist, priv_encoder_output_dim
         )
+        if num_dynamic_env_latent > 0:
+            self.dynamic_history_encoder = StateHistoryEncoder(
+                activation, num_prop, num_hist, num_dynamic_env_latent
+            )
+        else:
+            self.dynamic_history_encoder = None
 
         if self.if_scan_encode:
             scan_encoder = []
@@ -209,7 +236,8 @@ class Actor(nn.Module):
                 num_prop
                 + self.scan_encoder_output_dim
                 + num_priv_explicit
-                + priv_encoder_output_dim,
+                + priv_encoder_output_dim
+                + num_dynamic_env_latent,
                 actor_hidden_dims[0],
             )
         )
@@ -226,59 +254,66 @@ class Actor(nn.Module):
             actor_layers.append(nn.Tanh())
         self.actor_backbone = nn.Sequential(*actor_layers)
 
-    def forward(self, obs, hist_encoding: bool, eval=False, scandots_latent=None):
-        if not eval:
-            if self.if_scan_encode:
-                obs_scan = obs[:, self.num_prop : self.num_prop + self.num_scan]
-                if scandots_latent is None:
-                    scan_latent = self.scan_encoder(obs_scan)
-                else:
-                    scan_latent = scandots_latent
-                obs_prop_scan = torch.cat([obs[:, : self.num_prop], scan_latent], dim=1)
+    def _parse_dynamic_recovery_modes(self, cfg):
+        modes = {name: "roa" for name in DYNAMIC_ENV_TYPE_COLUMNS}
+        if cfg is None:
+            return modes
+        raw_modes = getattr(cfg, "recovery_modes", None)
+        if raw_modes is None and isinstance(cfg, dict):
+            raw_modes = cfg.get("recovery_modes")
+        if raw_modes is not None:
+            modes.update(raw_modes)
+        for name, mode in modes.items():
+            if mode not in ("roa", "teacher_student"):
+                raise ValueError(
+                    f"Unsupported dynamic env latent recovery mode for {name}: {mode}"
+                )
+        return modes
+
+    def forward(
+        self,
+        obs,
+        hist_encoding: bool,
+        eval=False,
+        scandots_latent=None,
+        dynamic_env_latent=None,
+    ):
+        if self.if_scan_encode:
+            obs_scan = obs[:, self.num_prop : self.num_prop + self.num_scan]
+            if scandots_latent is None:
+                scan_latent = self.scan_encoder(obs_scan)
             else:
-                obs_prop_scan = obs[:, : self.num_prop + self.num_scan]
-            obs_priv_explicit = obs[
-                :,
-                self.num_prop
-                + self.num_scan : self.num_prop
-                + self.num_scan
-                + self.num_priv_explicit,
-            ]
-            if hist_encoding:
-                latent = self.infer_hist_latent(obs)
-            else:
-                latent = self.infer_priv_latent(obs)
-            backbone_input = torch.cat(
-                [obs_prop_scan, obs_priv_explicit, latent], dim=1
-            )
-            backbone_output = self.actor_backbone(backbone_input)
-            return backbone_output
+                scan_latent = scandots_latent
+            obs_prop_scan = torch.cat([obs[:, : self.num_prop], scan_latent], dim=1)
         else:
-            if self.if_scan_encode:
-                obs_scan = obs[:, self.num_prop : self.num_prop + self.num_scan]
-                if scandots_latent is None:
-                    scan_latent = self.scan_encoder(obs_scan)
-                else:
-                    scan_latent = scandots_latent
-                obs_prop_scan = torch.cat([obs[:, : self.num_prop], scan_latent], dim=1)
-            else:
-                obs_prop_scan = obs[:, : self.num_prop + self.num_scan]
-            obs_priv_explicit = obs[
-                :,
-                self.num_prop
-                + self.num_scan : self.num_prop
-                + self.num_scan
-                + self.num_priv_explicit,
-            ]
-            if hist_encoding:
-                latent = self.infer_hist_latent(obs)
-            else:
-                latent = self.infer_priv_latent(obs)
-            backbone_input = torch.cat(
-                [obs_prop_scan, obs_priv_explicit, latent], dim=1
-            )
-            backbone_output = self.actor_backbone(backbone_input)
-            return backbone_output
+            obs_prop_scan = obs[:, : self.num_prop + self.num_scan]
+        obs_priv_explicit = obs[
+            :,
+            self.num_prop
+            + self.num_scan : self.num_prop
+            + self.num_scan
+            + self.num_priv_explicit,
+        ]
+        if hist_encoding:
+            latent = self.infer_hist_latent(obs)
+        else:
+            latent = self.infer_priv_latent(obs)
+        dynamic_latent = self.infer_dynamic_env_latent(
+            obs, hist_encoding=hist_encoding, dynamic_env_latent=dynamic_env_latent
+        )
+        backbone_input = torch.cat(
+            [obs_prop_scan, obs_priv_explicit, latent, dynamic_latent], dim=1
+        )
+        backbone_output = self.actor_backbone(backbone_input)
+        return backbone_output
+
+    def _dynamic_env_start(self):
+        return (
+            self.num_prop
+            + self.num_scan
+            + self.num_priv_explicit
+            + self.num_priv_latent
+        )
 
     def infer_priv_latent(self, obs):
         priv = obs[
@@ -295,6 +330,54 @@ class Actor(nn.Module):
     def infer_hist_latent(self, obs):
         hist = obs[:, -self.num_hist * self.num_prop :]
         return self.history_encoder(hist.view(-1, self.num_hist, self.num_prop))
+
+    def infer_priv_dynamic_env_latent(self, obs):
+        if self.num_dynamic_env_latent == 0:
+            return obs.new_zeros((obs.shape[0], 0))
+        start = self._dynamic_env_start()
+        return obs[:, start : start + self.num_dynamic_env_latent]
+
+    def infer_hist_dynamic_env_latent(self, obs):
+        if self.num_dynamic_env_latent == 0:
+            return obs.new_zeros((obs.shape[0], 0))
+        hist = obs[:, -self.num_hist * self.num_prop :]
+        return self.dynamic_history_encoder(hist.view(-1, self.num_hist, self.num_prop))
+
+    def dynamic_env_recovery_mask(self, obs, mode):
+        if self.num_dynamic_env_latent == 0:
+            return obs.new_zeros((obs.shape[0], 0), dtype=torch.bool)
+        labels = self.infer_priv_dynamic_env_latent(obs).view(
+            obs.shape[0], self.dynamic_env_num_groups, self.dynamic_env_group_dim
+        )
+        group_mask = labels[..., 0] > 0.5
+        mode_mask = torch.zeros_like(group_mask)
+        for name, column in DYNAMIC_ENV_TYPE_COLUMNS.items():
+            if self.dynamic_env_recovery_modes.get(name) == mode:
+                mode_mask |= labels[..., column] > 0.5
+        group_mask &= mode_mask
+        return (
+            group_mask[:, :, None]
+            .expand_as(labels)
+            .reshape(obs.shape[0], self.num_dynamic_env_latent)
+        )
+
+    def infer_dynamic_env_latent(
+        self, obs, hist_encoding: bool, dynamic_env_latent=None
+    ):
+        priv_dynamic = self.infer_priv_dynamic_env_latent(obs)
+        if self.num_dynamic_env_latent == 0:
+            return priv_dynamic
+        output = priv_dynamic
+        if hist_encoding:
+            hist_dynamic = self.infer_hist_dynamic_env_latent(obs)
+            roa_mask = self.dynamic_env_recovery_mask(obs, "roa")
+            output = torch.where(roa_mask, hist_dynamic, output)
+        if dynamic_env_latent is not None:
+            teacher_student_mask = self.dynamic_env_recovery_mask(
+                obs, "teacher_student"
+            )
+            output = torch.where(teacher_student_mask, dynamic_env_latent, output)
+        return output
 
     def infer_scandots_latent(self, obs):
         scan = obs[:, self.num_prop : self.num_prop + self.num_scan]
@@ -313,12 +396,14 @@ class ActorCriticRMA(nn.Module):
         num_priv_explicit,
         num_hist,
         num_actions,
+        num_dynamic_env_latent=0,
+        dynamic_env_latent_cfg=None,
         scan_encoder_dims=[256, 256, 256],
         actor_hidden_dims=[256, 256, 256],
         critic_hidden_dims=[256, 256, 256],
         activation="elu",
         init_noise_std=1.0,
-        **kwargs
+        **kwargs,
     ):
         if kwargs:
             print(
@@ -343,6 +428,8 @@ class ActorCriticRMA(nn.Module):
             num_hist,
             activation,
             tanh_encoder_output=kwargs["tanh_encoder_output"],
+            num_dynamic_env_latent=num_dynamic_env_latent,
+            dynamic_env_latent_cfg=dynamic_env_latent_cfg,
         )
 
         # Value function
@@ -414,11 +501,16 @@ class ActorCriticRMA(nn.Module):
         hist_encoding=False,
         eval=False,
         scandots_latent=None,
-        **kwargs
+        dynamic_env_latent=None,
+        **kwargs,
     ):
         if not eval:
             actions_mean = self.actor(
-                observations, hist_encoding, eval, scandots_latent
+                observations,
+                hist_encoding,
+                eval,
+                scandots_latent,
+                dynamic_env_latent,
             )
             return actions_mean
         else:

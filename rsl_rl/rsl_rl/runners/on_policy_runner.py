@@ -70,6 +70,7 @@ class OnPolicyRunner:
         self.env = env
 
         print("Using MLP and Priviliged Env encoder ActorCritic structure")
+        self.dynamic_env_latent_cfg = getattr(self.env.cfg, "dynamic_env_latent", None)
         actor_critic: ActorCriticRMA = ActorCriticRMA(
             self.env.cfg.env.n_proprio,
             self.env.cfg.env.n_scan,
@@ -78,6 +79,8 @@ class OnPolicyRunner:
             self.env.cfg.env.n_priv,
             self.env.cfg.env.history_len,
             self.env.num_actions,
+            getattr(self.env.cfg.env, "n_dynamic_env_latent", 0),
+            self.dynamic_env_latent_cfg,
             **self.policy_cfg,
         ).to(self.device)
         estimator = Estimator(
@@ -93,9 +96,9 @@ class OnPolicyRunner:
                 self.policy_cfg["scan_encoder_dims"][-1],
                 self.depth_encoder_cfg["hidden_dims"],
             )
-            depth_encoder = RecurrentDepthBackbone(depth_backbone, env.cfg).to(
-                self.device
-            )
+            depth_encoder = RecurrentDepthBackbone(
+                depth_backbone, env.cfg, self.policy_cfg["scan_encoder_dims"][-1]
+            ).to(self.device)
             depth_actor = deepcopy(actor_critic.actor)
         else:
             depth_encoder = None
@@ -114,6 +117,7 @@ class OnPolicyRunner:
             self.depth_encoder_cfg,
             depth_actor,
             device=self.device,
+            dynamic_env_latent_cfg=self.dynamic_env_latent_cfg,
             **self.alg_cfg,
         )
         self.num_steps_per_env = self.cfg["num_steps_per_env"]
@@ -145,6 +149,8 @@ class OnPolicyRunner:
         mean_disc_acc = 0.0
         mean_hist_latent_loss = 0.0
         mean_priv_reg_loss = 0.0
+        mean_dynamic_env_roa_loss = 0.0
+        mean_dagger_dynamic_env_roa_loss = 0.0
         priv_reg_coef = 0.0
         entropy_coef = 0.0
         # initialize writer
@@ -249,10 +255,14 @@ class OnPolicyRunner:
                 mean_disc_acc,
                 mean_priv_reg_loss,
                 priv_reg_coef,
+                mean_dynamic_env_roa_loss,
             ) = self.alg.update()
             if hist_encoding:
                 print("Updating dagger...")
-                mean_hist_latent_loss = self.alg.update_dagger()
+                (
+                    mean_hist_latent_loss,
+                    mean_dagger_dynamic_env_roa_loss,
+                ) = self.alg.update_dagger()
 
             stop = time.time()
             learn_time = stop - start
@@ -312,6 +322,9 @@ class OnPolicyRunner:
             scandots_latent_buffer = []
             actions_teacher_buffer = []
             actions_student_buffer = []
+            dynamic_env_latent_buffer = []
+            dynamic_env_teacher_buffer = []
+            obs_teacher_student_buffer = []
             yaw_buffer_student = []
             yaw_buffer_teacher = []
             delta_yaw_ok_buffer = []
@@ -328,10 +341,22 @@ class OnPolicyRunner:
                         infos["depth"].clone(), obs_prop_depth
                     )  # clone is crucial to avoid in-place operation
 
-                    depth_latent = depth_latent_and_yaw[:, :-2]
+                    scan_latent_dim = self.policy_cfg["scan_encoder_dims"][-1]
+                    dynamic_latent_dim = getattr(
+                        self.env.cfg.env, "n_dynamic_env_latent", 0
+                    )
+                    depth_latent = depth_latent_and_yaw[:, :scan_latent_dim]
+                    dynamic_env_latent = depth_latent_and_yaw[
+                        :, scan_latent_dim : scan_latent_dim + dynamic_latent_dim
+                    ]
                     yaw = 1.5 * depth_latent_and_yaw[:, -2:]
 
                     depth_latent_buffer.append(depth_latent)
+                    dynamic_env_latent_buffer.append(dynamic_env_latent)
+                    dynamic_env_teacher_buffer.append(
+                        self.alg.actor_critic.actor.infer_priv_dynamic_env_latent(obs)
+                    )
+                    obs_teacher_student_buffer.append(obs)
                     yaw_buffer_student.append(yaw)
                     yaw_buffer_teacher.append(obs[:, 6:8])
 
@@ -351,7 +376,10 @@ class OnPolicyRunner:
                     / infos["delta_yaw_ok"].numel()
                 )
                 actions_student = self.alg.depth_actor(
-                    obs_student, hist_encoding=True, scandots_latent=depth_latent
+                    obs_student,
+                    hist_encoding=True,
+                    scandots_latent=depth_latent,
+                    dynamic_env_latent=dynamic_env_latent,
                 )
                 actions_student_buffer.append(actions_student)
 
@@ -404,11 +432,19 @@ class OnPolicyRunner:
             actions_student_buffer = torch.cat(actions_student_buffer, dim=0)
             yaw_buffer_student = torch.cat(yaw_buffer_student, dim=0)
             yaw_buffer_teacher = torch.cat(yaw_buffer_teacher, dim=0)
-            depth_actor_loss, yaw_loss = self.alg.update_depth_actor(
-                actions_student_buffer,
-                actions_teacher_buffer,
-                yaw_buffer_student,
-                yaw_buffer_teacher,
+            dynamic_env_latent_buffer = torch.cat(dynamic_env_latent_buffer, dim=0)
+            dynamic_env_teacher_buffer = torch.cat(dynamic_env_teacher_buffer, dim=0)
+            obs_teacher_student_buffer = torch.cat(obs_teacher_student_buffer, dim=0)
+            depth_actor_loss, yaw_loss, depth_dynamic_env_loss = (
+                self.alg.update_depth_actor(
+                    actions_student_buffer,
+                    actions_teacher_buffer,
+                    yaw_buffer_student,
+                    yaw_buffer_teacher,
+                    obs_teacher_student_buffer,
+                    dynamic_env_latent_buffer,
+                    dynamic_env_teacher_buffer,
+                )
             )
 
             # depth_encoder_loss, depth_actor_loss = self.alg.update_depth_both(depth_latent_buffer, scandots_latent_buffer, actions_student_buffer, actions_teacher_buffer)
@@ -468,6 +504,7 @@ class OnPolicyRunner:
         wandb_dict["Loss_depth/depth_encoder"] = locs["depth_encoder_loss"]
         wandb_dict["Loss_depth/depth_actor"] = locs["depth_actor_loss"]
         wandb_dict["Loss_depth/yaw"] = locs["yaw_loss"]
+        wandb_dict["Loss_depth/dynamic_env"] = locs.get("depth_dynamic_env_loss", 0.0)
         wandb_dict["Policy/mean_noise_std"] = mean_std.item()
         wandb_dict["Perf/total_fps"] = fps
         wandb_dict["Perf/collection time"] = locs["collection_time"]
@@ -492,6 +529,7 @@ class OnPolicyRunner:
                 f"""{'Depth encoder loss:':>{pad}} {locs['depth_encoder_loss']:.4f}\n"""
                 f"""{'Depth actor loss:':>{pad}} {locs['depth_actor_loss']:.4f}\n"""
                 f"""{'Yaw loss:':>{pad}} {locs['yaw_loss']:.4f}\n"""
+                f"""{'Depth dynamic env loss:':>{pad}} {locs.get('depth_dynamic_env_loss', 0.0):.4f}\n"""
                 f"""{'Delta yaw ok percentage:':>{pad}} {locs['delta_yaw_ok_percentage']:.4f}\n"""
             )
         else:
@@ -546,6 +584,10 @@ class OnPolicyRunner:
         wandb_dict["Loss/estimator"] = locs["mean_estimator_loss"]
         wandb_dict["Loss/hist_latent_loss"] = locs["mean_hist_latent_loss"]
         wandb_dict["Loss/priv_reg_loss"] = locs["mean_priv_reg_loss"]
+        wandb_dict["Loss/dynamic_env_roa"] = locs.get("mean_dynamic_env_roa_loss", 0.0)
+        wandb_dict["Loss/dagger_dynamic_env_roa"] = locs.get(
+            "mean_dagger_dynamic_env_roa_loss", 0.0
+        )
         wandb_dict["Loss/priv_ref_lambda"] = locs["priv_reg_coef"]
         wandb_dict["Loss/entropy_coef"] = locs["entropy_coef"]
         wandb_dict["Loss/learning_rate"] = self.alg.learning_rate
@@ -625,6 +667,64 @@ class OnPolicyRunner:
         )
         print(log_string)
 
+    def _load_module_state_compatible(self, module, state_dict, module_name):
+        current = module.state_dict()
+        merged = {}
+        copied = 0
+        expanded = 0
+        skipped = []
+        for key, target in current.items():
+            source = state_dict.get(key)
+            if source is None:
+                merged[key] = target
+                skipped.append(key)
+                continue
+            if source.shape == target.shape:
+                merged[key] = source
+                copied += 1
+                continue
+            dynamic_rows = getattr(module, "dynamic_output_dim", 0)
+            if (
+                dynamic_rows > 0
+                and key.startswith("output_mlp.0.")
+                and source.ndim == target.ndim
+                and target.shape[0] == source.shape[0] + dynamic_rows
+            ):
+                tensor = torch.zeros_like(target)
+                scan_rows = source.shape[0] - 2
+                if source.ndim == 2:
+                    tensor[:scan_rows, :] = source[:scan_rows, :]
+                    tensor[-2:, :] = source[-2:, :]
+                else:
+                    tensor[:scan_rows] = source[:scan_rows]
+                    tensor[-2:] = source[-2:]
+                merged[key] = tensor
+                expanded += 1
+                continue
+            if source.ndim == target.ndim == 2:
+                tensor = torch.zeros_like(target)
+                rows = min(source.shape[0], target.shape[0])
+                cols = min(source.shape[1], target.shape[1])
+                tensor[:rows, :cols] = source[:rows, :cols]
+                merged[key] = tensor
+                expanded += 1
+                continue
+            if source.ndim == target.ndim == 1:
+                tensor = torch.zeros_like(target)
+                size = min(source.shape[0], target.shape[0])
+                tensor[:size] = source[:size]
+                merged[key] = tensor
+                expanded += 1
+                continue
+            merged[key] = target
+            skipped.append(key)
+        module.load_state_dict(merged, strict=True)
+        if expanded or skipped:
+            print(
+                f"Loaded {module_name} with compatible partial state: "
+                f"copied={copied}, expanded={expanded}, skipped={len(skipped)}"
+            )
+
     def save(self, path, infos=None):
         state_dict = {
             "model_state_dict": self.alg.actor_critic.state_dict(),
@@ -642,8 +742,12 @@ class OnPolicyRunner:
         print("*" * 80)
         print("Loading model from {}...".format(path))
         loaded_dict = torch.load(path, map_location=self.device)
-        self.alg.actor_critic.load_state_dict(loaded_dict["model_state_dict"])
-        self.alg.estimator.load_state_dict(loaded_dict["estimator_state_dict"])
+        self._load_module_state_compatible(
+            self.alg.actor_critic, loaded_dict["model_state_dict"], "actor_critic"
+        )
+        self._load_module_state_compatible(
+            self.alg.estimator, loaded_dict["estimator_state_dict"], "estimator"
+        )
         if self.if_depth:
             if "depth_encoder_state_dict" not in loaded_dict:
                 warnings.warn(
@@ -651,13 +755,17 @@ class OnPolicyRunner:
                 )
             else:
                 print("Saved depth encoder detected, loading...")
-                self.alg.depth_encoder.load_state_dict(
-                    loaded_dict["depth_encoder_state_dict"]
+                self._load_module_state_compatible(
+                    self.alg.depth_encoder,
+                    loaded_dict["depth_encoder_state_dict"],
+                    "depth_encoder",
                 )
             if "depth_actor_state_dict" in loaded_dict:
                 print("Saved depth actor detected, loading...")
-                self.alg.depth_actor.load_state_dict(
-                    loaded_dict["depth_actor_state_dict"]
+                self._load_module_state_compatible(
+                    self.alg.depth_actor,
+                    loaded_dict["depth_actor_state_dict"],
+                    "depth_actor",
                 )
             else:
                 print(
@@ -667,7 +775,12 @@ class OnPolicyRunner:
                     self.alg.actor_critic.actor.state_dict()
                 )
         if load_optimizer:
-            self.alg.optimizer.load_state_dict(loaded_dict["optimizer_state_dict"])
+            try:
+                self.alg.optimizer.load_state_dict(loaded_dict["optimizer_state_dict"])
+            except ValueError as exc:
+                warnings.warn(
+                    f"Skipping incompatible optimizer state from checkpoint: {exc}"
+                )
         # self.current_learning_iteration = loaded_dict['iter']
         print("*" * 80)
         return loaded_dict["infos"]

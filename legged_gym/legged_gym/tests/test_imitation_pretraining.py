@@ -1,4 +1,5 @@
 from legged_gym.scripts.pretrain_imitation import (
+    CSV_HEADER,
     ImitationReplayBuffer,
     SOURCE_STUDENT,
     SOURCE_TEACHER,
@@ -50,3 +51,8 @@ def test_replay_buffer_samples_single_source_before_dagger():
     assert batch_actions.shape == (6, 2)
     assert teacher_count == 6
     assert student_count == 0
+
+
+def test_imitation_metrics_include_dynamic_env_roa_loss():
+    assert "dynamic_env_roa_loss" in CSV_HEADER
+    assert CSV_HEADER.index("dynamic_env_roa_loss") > CSV_HEADER.index("estimator_loss")

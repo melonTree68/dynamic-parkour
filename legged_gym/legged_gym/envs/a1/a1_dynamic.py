@@ -422,6 +422,119 @@ class DynamicLeggedRobot(LeggedRobot):
             heights = torch.where(cover & (top > heights), top, heights)
         return heights
 
+    def _get_dynamic_env_latent_obs(self):
+        cfg = getattr(self.cfg, "dynamic_env_latent", None)
+        dim = getattr(self.cfg.env, "n_dynamic_env_latent", 0)
+        if cfg is None or not getattr(cfg, "enabled", False) or dim == 0:
+            return super()._get_dynamic_env_latent_obs()
+
+        num_groups = getattr(cfg, "num_future_groups", 2)
+        feature_dim = getattr(cfg, "features_per_group", 15)
+        if dim != num_groups * feature_dim:
+            raise ValueError(
+                "n_dynamic_env_latent must equal num_future_groups * features_per_group"
+            )
+
+        group_ids = self._select_dynamic_env_latent_groups(num_groups)
+        features = self._build_dynamic_env_latent_features(group_ids)
+        return features.view(self.num_envs, dim)
+
+    def _select_dynamic_env_latent_groups(self, num_groups):
+        current_goal = torch.clamp(
+            self.cur_goal_idx, min=0, max=self.cfg.terrain.num_goals - 1
+        )
+        mapped_group = torch.gather(
+            self.dynamic_goal_groups, 1, current_goal[:, None]
+        ).squeeze(1)
+        fallback_group = torch.clamp(
+            current_goal - 1, min=0, max=self.num_dynamic_obstacles - 1
+        )
+        start_group = torch.where(mapped_group >= 0, mapped_group, fallback_group)
+        offsets = torch.arange(num_groups, device=self.device, dtype=torch.long)
+        group_ids = start_group[:, None] + offsets[None, :]
+        return torch.where(
+            group_ids < self.num_dynamic_obstacles,
+            group_ids,
+            torch.full_like(group_ids, -1),
+        )
+
+    def _build_dynamic_env_latent_features(self, group_ids):
+        feature_dim = self.cfg.dynamic_env_latent.features_per_group
+        features = torch.zeros(
+            self.num_envs, group_ids.shape[1], feature_dim, device=self.device
+        )
+        safe_group_ids = torch.clamp(group_ids, min=0)
+        batch_ids = torch.arange(self.num_envs, device=self.device)[:, None]
+
+        motion_types = self.dynamic_motion_types[batch_ids, safe_group_ids]
+        group_types = motion_types.amax(dim=-1)
+        valid = (group_ids >= 0) & (group_types != DYNAMIC_NONE)
+        features[..., 0] = valid.float()
+        features[..., 1] = ((group_types == DYNAMIC_HURDLE) & valid).float()
+        features[..., 2] = ((group_types == DYNAMIC_GAP) & valid).float()
+        features[..., 3] = ((group_types == DYNAMIC_STEP) & valid).float()
+        features[..., 4] = ((group_types == DYNAMIC_TILTED_PADS) & valid).float()
+
+        states = self.obstacle_root_states[batch_ids, safe_group_ids]
+        dims = self.dynamic_dims[batch_ids, safe_group_ids]
+        specs = self.dynamic_specs[batch_ids, safe_group_ids]
+        base_pos = self.root_states[:, :3][:, None, :]
+        slot_active = motion_types != DYNAMIC_NONE
+
+        rel_x0 = (states[..., 0, 0] - base_pos[..., 0]) / 5.0
+        rel_x1 = torch.where(
+            slot_active[..., 1],
+            (states[..., 1, 0] - base_pos[..., 0]) / 5.0,
+            torch.zeros_like(rel_x0),
+        )
+        rel_y = (states[..., 0, 1] - base_pos[..., 1]) / 2.0
+        features[..., 5] = torch.clamp(rel_x0, -1.0, 1.0)
+        features[..., 6] = torch.clamp(rel_x1, -1.0, 1.0)
+        features[..., 7] = torch.clamp(rel_y, -1.0, 1.0)
+
+        offset = self.dynamic_offset[batch_ids, safe_group_ids]
+        velocity = self.dynamic_velocity[batch_ids, safe_group_ids]
+        amplitude = self.dynamic_amplitude[batch_ids, safe_group_ids]
+        period = torch.clamp(self.dynamic_period[batch_ids, safe_group_ids], min=1e-6)
+        phase = (
+            2 * np.pi * self.dynamic_time[:, None] / period
+            + self.dynamic_phase[batch_ids, safe_group_ids]
+        )
+        sin_phase = torch.sin(phase)
+        cos_phase = torch.cos(phase)
+        omega = 2 * np.pi / period
+        accel = -amplitude * omega * omega * sin_phase
+
+        top0 = states[..., 0, 2] + dims[..., 0, 2] / 2
+        gap_width = states[..., 1, 0] - states[..., 0, 0] - dims[..., 0, 0]
+        roll = offset
+        primary = torch.zeros_like(offset)
+        primary = torch.where(group_types == DYNAMIC_HURDLE, top0 / 0.6, primary)
+        primary = torch.where(group_types == DYNAMIC_GAP, gap_width / 1.5, primary)
+        primary = torch.where(group_types == DYNAMIC_STEP, top0 / 1.0, primary)
+        primary = torch.where(group_types == DYNAMIC_TILTED_PADS, roll / 0.6, primary)
+
+        roll_sign = specs[..., 0, 6]
+        min_roll_fraction = self.cfg.dynamic_obstacles.tilted_pad_min_roll_fraction
+        tilt_accel = (
+            -roll_sign
+            * amplitude
+            * (1.0 - min_roll_fraction)
+            * (omega * omega / 2.0)
+            * sin_phase
+        )
+        accel = torch.where(group_types == DYNAMIC_TILTED_PADS, tilt_accel, accel)
+
+        features[..., 8] = torch.clamp(primary, -1.0, 1.0)
+        features[..., 9] = torch.clamp(velocity / 1.0, -1.0, 1.0)
+        features[..., 10] = torch.clamp(accel / 2.0, -1.0, 1.0)
+        features[..., 11] = sin_phase
+        features[..., 12] = cos_phase
+        features[..., 13] = torch.clamp(amplitude / 0.6, -1.0, 1.0)
+        features[..., 14] = torch.clamp(omega / np.pi, -1.0, 1.0)
+        features = torch.where(valid[..., None], features, torch.zeros_like(features))
+        return features
+
     def _reward_bad_dynamic_takeoff(self):
         # TODO: implement this penalty
         return torch.zeros(self.num_envs, dtype=torch.float, device=self.device)

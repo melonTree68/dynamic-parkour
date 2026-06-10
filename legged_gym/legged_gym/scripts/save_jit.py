@@ -20,6 +20,15 @@ import code
 import shutil
 
 
+class JitDynamicEnvLatentCfg:
+    recovery_modes = {
+        "hurdle": "roa",
+        "gap": "teacher_student",
+        "step": "roa",
+        "tilted_pad": "teacher_student",
+    }
+
+
 def get_load_path(root, load_run=-1, checkpoint=-1, model_name_include="model"):
     if not os.path.isdir(root):  # use first 4 chars to mactch the run name
         model_name_cand = os.path.basename(root)
@@ -56,6 +65,8 @@ class HardwareVisionNN(nn.Module):
         num_hist,
         num_actions,
         tanh,
+        num_dynamic_env_latent=0,
+        dynamic_env_latent_cfg=None,
         actor_hidden_dims=[512, 256, 128],
         scan_encoder_dims=[128, 64, 32],
         depth_encoder_hidden_dim=512,
@@ -70,11 +81,13 @@ class HardwareVisionNN(nn.Module):
         self.num_actions = num_actions
         self.num_priv_latent = num_priv_latent
         self.num_priv_explicit = num_priv_explicit
+        self.num_dynamic_env_latent = num_dynamic_env_latent
         num_obs = (
             num_prop
             + num_scan
             + num_hist * num_prop
             + num_priv_latent
+            + num_dynamic_env_latent
             + num_priv_explicit
         )
         self.num_obs = num_obs
@@ -92,13 +105,15 @@ class HardwareVisionNN(nn.Module):
             num_hist,
             activation,
             tanh_encoder_output=tanh,
+            num_dynamic_env_latent=num_dynamic_env_latent,
+            dynamic_env_latent_cfg=dynamic_env_latent_cfg,
         )
 
         self.estimator = Estimator(
             input_dim=num_prop, output_dim=num_priv_explicit, hidden_dims=[128, 64]
         )
 
-    def forward(self, obs, depth_latent):
+    def forward(self, obs, depth_latent, dynamic_env_latent):
         obs[
             :,
             self.num_prop
@@ -107,7 +122,11 @@ class HardwareVisionNN(nn.Module):
             + self.num_priv_explicit,
         ] = self.estimator(obs[:, : self.num_prop])
         return self.actor(
-            obs, hist_encoding=True, eval=False, scandots_latent=depth_latent
+            obs,
+            hist_encoding=True,
+            eval=False,
+            scandots_latent=depth_latent,
+            dynamic_env_latent=dynamic_env_latent,
         )
         # return obs, depth_latent
 
@@ -118,6 +137,7 @@ def play(args):
 
     n_priv_explicit = 3 + 3 + 3
     n_priv_latent = 4 + 1 + 12 + 12
+    n_dynamic_env_latent = 30
     num_scan = 132
     num_actions = 12
 
@@ -136,6 +156,8 @@ def play(args):
         history_len,
         num_actions,
         args.tanh,
+        n_dynamic_env_latent,
+        JitDynamicEnvLatentCfg,
     ).to(device)
     load_path, checkpoint = get_load_path(root=load_run, checkpoint=checkpoint)
     load_run = os.path.dirname(load_path)
@@ -169,13 +191,17 @@ def play(args):
             + num_scan
             + n_priv_explicit
             + n_priv_latent
+            + n_dynamic_env_latent
             + history_len * n_proprio,
             device=device,
         )
         depth_latent = torch.ones(1, 32, device=device)
-        test = policy(obs_input, depth_latent)
+        dynamic_env_latent = torch.ones(1, n_dynamic_env_latent, device=device)
+        test = policy(obs_input, depth_latent, dynamic_env_latent)
 
-        traced_policy = torch.jit.trace(policy, (obs_input, depth_latent))
+        traced_policy = torch.jit.trace(
+            policy, (obs_input, depth_latent, dynamic_env_latent)
+        )
 
         # traced_policy = torch.jit.script(policy)
         save_path = os.path.join(

@@ -459,6 +459,10 @@ class LeggedRobot(BaseTask):
             self.rew_buf += rew
             self.episode_sums["termination"] += rew
 
+    def _get_dynamic_env_latent_obs(self):
+        dim = getattr(self.cfg.env, "n_dynamic_env_latent", 0)
+        return self.root_states.new_zeros((self.num_envs, dim))
+
     def compute_observations(self):
         """
         Computes observations
@@ -504,6 +508,7 @@ class LeggedRobot(BaseTask):
             ),
             dim=-1,
         )
+        dynamic_env_latent = self._get_dynamic_env_latent_obs()
         if self.cfg.terrain.measure_heights:
             heights = torch.clip(
                 self.root_states[:, 2].unsqueeze(1) - 0.3 - self.measured_heights,
@@ -516,6 +521,7 @@ class LeggedRobot(BaseTask):
                     heights,
                     priv_explicit,
                     priv_latent,
+                    dynamic_env_latent,
                     self.obs_history_buf.view(self.num_envs, -1),
                 ],
                 dim=-1,
@@ -526,6 +532,7 @@ class LeggedRobot(BaseTask):
                     obs_buf,
                     priv_explicit,
                     priv_latent,
+                    dynamic_env_latent,
                     self.obs_history_buf.view(self.num_envs, -1),
                 ],
                 dim=-1,

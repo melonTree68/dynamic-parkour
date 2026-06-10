@@ -27,22 +27,26 @@ This dynamic-state augmentation should extend these mechanisms instead of treati
 
 ## Dynamic Obstacle State
 
-Use compact labels tied to the next relevant obstacle or current goal support:
+The implemented `a1_dynamic` interface appends `env.n_dynamic_env_latent = 30` after the original privileged latent slice and before proprioceptive history. Static `a1` keeps `n_dynamic_env_latent = 0`. The code-only switch lives in `A1DynamicParkourCfg.dynamic_env_latent.recovery_modes`, keyed by obstacle family: `hurdle`, `gap`, `step`, and `tilted_pad`. `dynamic_demo` follows each component group's actual motion type.
 
-- Hurdles: relative x position, velocity or phase, height, and crossing index.
-- Gaps: relative takeoff/landing support positions, effective gap size, motion phase, and linked moving-goal offset.
-- Steps: current top height, vertical velocity or phase, and nominal sampled height.
-- Tilted pads: current roll angle, roll velocity or phase, roll sign, and support dimensions.
+The default layout is 2 upcoming groups x 15 features per group:
 
-Prefer robot-relative or goal-relative labels over absolute world coordinates for deployable recovery. Keep full-course state as an ablation, not the default interface, unless experiments show far-future obstacle state improves stability.
+```text
+valid, hurdle_bit, gap_bit, step_bit, tilted_pad_bit,
+rel_x_slot0, rel_x_slot1, rel_y, primary_value, value_velocity,
+value_acceleration, sin_phase, cos_phase, amplitude, omega
+```
 
-## Extension Paths
+`primary_value` is family-specific: hurdle top height, gap effective width, step top height, or tilted-pad roll angle. Position-like values are robot-relative and normalized. Velocity, acceleration, phase, amplitude, and angular frequency come from the scripted simulator state after `_apply_dynamic_poses()` has updated obstacle root states and dynamic motion tensors.
 
-- Extend privileged latent: append compact dynamic state to the current `n_priv_latent` path so the privileged teacher can use it during base RL.
-- Extend explicit privileged estimator: add dynamic state to a supervised estimator target if it should be recovered from proprioception/history or other non-visual observations.
-- Extend history latent alignment: make the history encoder match a privileged latent that includes dynamic state, then check whether proprioceptive history alone can infer the dynamic state well enough.
-- Extend depth distillation: make the depth encoder recover scan/dynamic latent from depth and train the depth actor against teacher actions and yaw, optionally with explicit dynamic-state prediction loss.
-- Hybrid: combine explicit dynamic-state prediction with action/yaw distillation and compare stability against implicit-only distillation.
+The labels are intentionally low-dimensional. This makes them easy to supervise and analyze, but they may be too small or too hand-designed to produce a large performance gain by themselves. Treat weak gains as an expected possibility rather than an implementation failure.
+
+## Implemented Recovery Paths
+
+- Imitation pretraining is now `imitation pretrain + env latent augmentation`: the student learns privileged-action imitation, history-action imitation, the explicit estimator, and masked ROA-style dynamic-state recovery for families configured as `"roa"`.
+- Base RL fine-tuning reuses the augmented observation and actor. The original priv/history latent regularization remains unchanged, and a separate masked dynamic-state recovery loss trains the dynamic history encoder for ROA-mode families.
+- Camera teacher-student distillation remains the post-pretrain stage. The depth encoder outputs `scan_latent + dynamic_env_latent + yaw`; teacher-student-mode families use the depth-predicted dynamic state, while ROA-mode families continue to use the history dynamic encoder.
+- Old static checkpoints can initialize augmented models through compatible partial loading. Matching weights are copied; expanded linear weights copy old columns and zero-initialize the new dynamic-latent columns.
 
 ## Open Decisions
 

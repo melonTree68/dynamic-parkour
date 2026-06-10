@@ -181,21 +181,33 @@ def play(args):
                 obs_student[:, 6:8] = 0
                 with torch.no_grad():
                     depth_latent_and_yaw = depth_encoder(infos["depth"], obs_student)
-                depth_latent = depth_latent_and_yaw[:, :-2]
+                scan_latent_dim = train_cfg.policy.scan_encoder_dims[-1]
+                dynamic_latent_dim = getattr(env.cfg.env, "n_dynamic_env_latent", 0)
+                depth_latent = depth_latent_and_yaw[:, :scan_latent_dim]
+                dynamic_env_latent = depth_latent_and_yaw[
+                    :, scan_latent_dim : scan_latent_dim + dynamic_latent_dim
+                ]
                 yaw = depth_latent_and_yaw[:, -2:]
             obs[:, 6:8] = 1.5 * yaw
 
         else:
             depth_latent = None
+            dynamic_env_latent = None
 
         if hasattr(ppo_runner.alg, "depth_actor"):
             with torch.no_grad():
                 actions = ppo_runner.alg.depth_actor(
-                    obs.detach(), hist_encoding=True, scandots_latent=depth_latent
+                    obs.detach(),
+                    hist_encoding=True,
+                    scandots_latent=depth_latent,
+                    dynamic_env_latent=dynamic_env_latent,
                 )
         else:
             actions = policy(
-                obs.detach(), hist_encoding=True, scandots_latent=depth_latent
+                obs.detach(),
+                hist_encoding=True,
+                scandots_latent=depth_latent,
+                dynamic_env_latent=dynamic_env_latent,
             )
 
         cur_goal_idx = env.cur_goal_idx.clone()

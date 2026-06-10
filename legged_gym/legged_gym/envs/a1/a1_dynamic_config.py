@@ -2,8 +2,23 @@ from .a1_parkour_config import A1ParkourCfg, A1ParkourCfgPPO
 
 
 class A1DynamicParkourCfg(A1ParkourCfg):
+    class dynamic_env_latent:
+        enabled = True
+        num_future_groups = 2
+        features_per_group = 15
+        recovery_modes = {
+            "hurdle": "roa",
+            "gap": "teacher_student",
+            "step": "roa",
+            "tilted_pad": "teacher_student",
+        }
+        roa_loss_weight = 1.0
+        teacher_student_loss_weight = 1.0
+
     class env(A1ParkourCfg.env):
         num_envs = 2048
+        n_dynamic_env_latent = A1ParkourCfg.env.n_dynamic_env_latent + 2 * 15
+        num_observations = A1ParkourCfg.env.num_observations + n_dynamic_env_latent
 
     class terrain(A1ParkourCfg.terrain):
         y_range = [-0.4, 0.4]

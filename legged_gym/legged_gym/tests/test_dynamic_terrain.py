@@ -30,7 +30,12 @@ def test_dynamic_task_registration_preserves_a1_configuration():
     assert task_registry.get_task_class("a1_dynamic") is DynamicLeggedRobot
     assert task_registry.get_task_class("a1") is LeggedRobot
     assert dynamic_cfg.env.num_envs == 2048
-    assert dynamic_cfg.env.num_observations == static_cfg.env.num_observations
+    assert static_cfg.env.n_dynamic_env_latent == 0
+    assert dynamic_cfg.env.n_dynamic_env_latent == 30
+    assert (
+        dynamic_cfg.env.num_observations
+        == static_cfg.env.num_observations + dynamic_cfg.env.n_dynamic_env_latent
+    )
     assert dynamic_cfg.rewards.scales.bad_dynamic_takeoff == -1.0
     dynamic_weights = [
         dynamic_cfg.terrain.terrain_dict[name]
@@ -49,6 +54,8 @@ def test_dynamic_task_registration_preserves_a1_configuration():
     assert hasattr(dynamic_cfg.dynamic_obstacles, "step_height_max")
     assert hasattr(dynamic_cfg.dynamic_obstacles, "tilted_pad_y_range_coeff")
     assert hasattr(dynamic_cfg.dynamic_obstacles, "dynamic_demo_spacing")
+    assert dynamic_cfg.dynamic_env_latent.num_future_groups == 2
+    assert dynamic_cfg.dynamic_env_latent.features_per_group == 15
 
 
 def make_subterrain():

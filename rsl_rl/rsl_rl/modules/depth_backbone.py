@@ -5,11 +5,15 @@ import torchvision
 
 
 class RecurrentDepthBackbone(nn.Module):
-    def __init__(self, base_backbone, env_cfg) -> None:
+    def __init__(self, base_backbone, env_cfg, scan_output_dim=32) -> None:
         super().__init__()
         activation = nn.ELU()
         last_activation = nn.Tanh()
         self.base_backbone = base_backbone
+        self.scan_output_dim = scan_output_dim
+        self.dynamic_output_dim = (
+            0 if env_cfg is None else getattr(env_cfg.env, "n_dynamic_env_latent", 0)
+        )
         if env_cfg == None:
             self.combination_mlp = nn.Sequential(
                 nn.Linear(32 + 53, 128), activation, nn.Linear(128, 32)
@@ -21,7 +25,10 @@ class RecurrentDepthBackbone(nn.Module):
                 nn.Linear(128, 32),
             )
         self.rnn = nn.GRU(input_size=32, hidden_size=512, batch_first=True)
-        self.output_mlp = nn.Sequential(nn.Linear(512, 32 + 2), last_activation)
+        self.output_mlp = nn.Sequential(
+            nn.Linear(512, self.scan_output_dim + self.dynamic_output_dim + 2),
+            last_activation,
+        )
         self.hidden_states = None
 
     def forward(self, depth_image, proprioception):

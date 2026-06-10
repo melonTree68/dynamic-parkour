@@ -14,6 +14,7 @@ CSV_HEADER = [
     "action_loss",
     "hist_action_loss",
     "estimator_loss",
+    "dynamic_env_roa_loss",
     "total_loss",
     "teacher_buffer_size",
     "student_buffer_size",
@@ -272,6 +273,18 @@ def _collect_rollout(
     }
 
 
+def _dynamic_env_roa_loss(actor, obs_batch):
+    if actor.num_dynamic_env_latent == 0:
+        return obs_batch.new_tensor(0.0)
+    mask = actor.dynamic_env_recovery_mask(obs_batch, "roa")
+    if not torch.any(mask):
+        return obs_batch.new_tensor(0.0)
+    target = actor.infer_priv_dynamic_env_latent(obs_batch).detach()
+    prediction = actor.infer_hist_dynamic_env_latent(obs_batch)
+    diff = (prediction - target).pow(2) * mask.float()
+    return diff.sum() / mask.float().sum().clamp(min=1.0)
+
+
 def _train_imitation_epoch(student_runner, replay_buffer, train_cfg):
     num_prop = student_runner.env.cfg.env.n_proprio
     num_scan = student_runner.env.cfg.env.n_scan
@@ -292,6 +305,7 @@ def _train_imitation_epoch(student_runner, replay_buffer, train_cfg):
         "action_loss": 0.0,
         "hist_action_loss": 0.0,
         "estimator_loss": 0.0,
+        "dynamic_env_roa_loss": 0.0,
         "total_loss": 0.0,
         "teacher_samples": 0,
         "student_samples": 0,
@@ -318,7 +332,15 @@ def _train_imitation_epoch(student_runner, replay_buffer, train_cfg):
         action_loss = F.mse_loss(action_pred, action_targets)
         hist_action_loss = F.mse_loss(hist_action_pred, action_targets)
         estimator_loss = F.mse_loss(priv_pred, priv_target)
-        total_loss = action_loss + hist_action_loss + estimator_loss
+        dynamic_env_roa_loss = _dynamic_env_roa_loss(
+            student_runner.alg.actor_critic.actor, obs_batch
+        )
+        total_loss = (
+            action_loss
+            + hist_action_loss
+            + estimator_loss
+            + student_runner.alg.dynamic_env_roa_loss_weight * dynamic_env_roa_loss
+        )
 
         student_runner.alg.optimizer.zero_grad()
         student_runner.alg.estimator_optimizer.zero_grad()
@@ -337,11 +359,18 @@ def _train_imitation_epoch(student_runner, replay_buffer, train_cfg):
         sums["action_loss"] += action_loss.item()
         sums["hist_action_loss"] += hist_action_loss.item()
         sums["estimator_loss"] += estimator_loss.item()
+        sums["dynamic_env_roa_loss"] += dynamic_env_roa_loss.item()
         sums["total_loss"] += total_loss.item()
         sums["teacher_samples"] += teacher_count
         sums["student_samples"] += student_count
 
-    for key in ("action_loss", "hist_action_loss", "estimator_loss", "total_loss"):
+    for key in (
+        "action_loss",
+        "hist_action_loss",
+        "estimator_loss",
+        "dynamic_env_roa_loss",
+        "total_loss",
+    ):
         sums[key] /= num_updates
     return sums
 
@@ -362,6 +391,7 @@ def _log_iteration(it, num_iterations, losses, replay_buffer, rollout_stats, log
         "action_loss": losses["action_loss"],
         "hist_action_loss": losses["hist_action_loss"],
         "estimator_loss": losses["estimator_loss"],
+        "dynamic_env_roa_loss": losses["dynamic_env_roa_loss"],
         "total_loss": losses["total_loss"],
         "teacher_buffer_size": replay_buffer.size(SOURCE_TEACHER),
         "student_buffer_size": replay_buffer.size(SOURCE_STUDENT),
@@ -375,13 +405,14 @@ def _log_iteration(it, num_iterations, losses, replay_buffer, rollout_stats, log
     wandb.log(wandb_row, step=it)
 
     print(
-        "Iteration {}/{} | action {:.6f} | hist {:.6f} | estimator {:.6f} | "
+        "Iteration {}/{} | action {:.6f} | hist {:.6f} | estimator {:.6f} | dynamic {:.6f} | "
         "buffers teacher={} student={} | rollout reward {:.3f} done_count={}".format(
             it,
             num_iterations,
             losses["action_loss"],
             losses["hist_action_loss"],
             losses["estimator_loss"],
+            losses["dynamic_env_roa_loss"],
             replay_buffer.size(SOURCE_TEACHER),
             replay_buffer.size(SOURCE_STUDENT),
             rollout_stats["reward_mean"],
