@@ -342,7 +342,7 @@ def get_args():
         {
             "name": "--imitation_save_interval",
             "type": int,
-            "default": 50,
+            "default": 5,
             "help": "Checkpoint interval used only by imitation pretraining.",
         },
         {"name": "--exptid", "type": str, "help": "exptid"},
