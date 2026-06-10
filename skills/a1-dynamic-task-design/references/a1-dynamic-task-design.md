@@ -1,8 +1,8 @@
-## Construction Path
+## Static A1 Background
 
-The default CLI task is `a1`, because `--task` defaults to `"a1"` in [helpers.py](/home/zhijie/extreme-parkour/legged_gym/legged_gym/utils/helpers.py:201).
+This section records the static `a1` construction path because `a1_dynamic` inherits from it and uses it as the main design reference. The current CLI default is `a1_dynamic`, but the static task remains the baseline for robot configuration, static obstacle semantics, and expert policies.
 
-At import time, [envs/__init__.py](/home/zhijie/extreme-parkour/legged_gym/legged_gym/envs/__init__.py:44) registers it as:
+The static `a1` task is registered in [envs/__init__.py](/home/zhijie/extreme-parkour/legged_gym/legged_gym/envs/__init__.py:44) as:
 
 ```python
 task_registry.register("a1", LeggedRobot, A1ParkourCfg(), A1ParkourCfgPPO())
@@ -125,9 +125,9 @@ Episodes terminate when the robot:
 
 After reset, [_update_terrain_curriculum()](/home/zhijie/extreme-parkour/legged_gym/legged_gym/envs/base/legged_robot.py:866) moves the robot to harder or easier terrain rows based on distance traveled.
 
-## Where A New Task Fits
+## Where The Dynamic Task Fits
 
-For another parkour task using the same A1 robot and shared logic, the normal structure is:
+For a parkour task using the same A1 robot and shared logic, the normal structure is:
 
 1. Add a new config class beside [a1_parkour_config.py](/home/zhijie/extreme-parkour/legged_gym/legged_gym/envs/a1/a1_parkour_config.py:34), subclassing `LeggedRobotCfg` and overriding `terrain`, rewards, commands, or robot settings.
 2. Add its PPO config class.

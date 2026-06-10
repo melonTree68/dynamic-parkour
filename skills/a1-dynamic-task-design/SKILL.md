@@ -1,17 +1,17 @@
 ---
-name: a1-parkour-tasks
-description: Explain, inspect, tune, or extend how the default `a1` parkour task and the derived `a1_dynamic` task are constructed in the extreme-parkour codebase. Use when Codex needs project-local knowledge about `A1ParkourCfg`, `A1DynamicParkourCfg`, `LeggedRobot`, `DynamicLeggedRobot`, task registration, terrain generation, observations, rewards, curriculum, scripted dynamic obstacle actors, or how to add another parkour task without scattering documentation under `docs/`.
+name: a1-dynamic-task-design
+description: Use when explaining, inspecting, tuning, or extending the `a1_dynamic` dynamic-obstacle parkour task design in extreme-parkour, including `A1DynamicParkourCfg`, `DynamicLeggedRobot`, task registration, dynamic terrain generation, scripted obstacle actors, moving goals, dynamic height scans, rewards, curriculum, and static A1 counterparts used as design references.
 ---
 
-# A1 Parkour Tasks
+# A1 Dynamic Task Design
 
 ## Overview
 
-Use this skill to understand the current default `a1` task and to guide changes that create, tune, or modify related parkour tasks such as `a1_dynamic`. Keep project knowledge in this skill, following the repository's Documentation Management Principles.
+Use this skill to understand and modify the `a1_dynamic` task: a dynamic-obstacle extension of A1 parkour with scripted moving hurdles, gaps, tilted pads, steps, and mixed demo tracks. The static `a1` task is documented here only as a design reference and compatibility baseline.
 
 ## Workflow
 
-1. Read [references/a1-parkour-tasks.md](references/a1-parkour-tasks.md) before explaining or modifying `a1` or `a1_dynamic` task construction.
+1. Read [references/a1-dynamic-task-design.md](references/a1-dynamic-task-design.md) before explaining or modifying `a1_dynamic` task construction.
 2. Verify current code before editing, especially these files:
    - `legged_gym/legged_gym/envs/__init__.py`
    - `legged_gym/legged_gym/envs/a1/a1_parkour_config.py`
@@ -22,9 +22,10 @@ Use this skill to understand the current default `a1` task and to guide changes 
    - `legged_gym/legged_gym/utils/terrain.py`
    - `legged_gym/legged_gym/scripts/play.py`
    - `legged_gym/legged_gym/scripts/evaluate.py`
-3. When adding another parkour task, prefer a new config class and registry entry over changing the meaning of the existing `a1` task.
-4. When changing terrain families, update both the terrain proportions/config and the positional dispatcher in `Terrain.make_terrain()`.
+3. Keep `a1_dynamic` separate from `a1`: prefer dynamic-specific config, metadata, actors, and registry entries over changing static-task semantics.
+4. When changing dynamic terrain families, update both the terrain proportions/config and the positional dispatcher in `Terrain.make_terrain()`.
 5. For training-pipeline work involving static A1 expert imitation before `a1_dynamic` base RL fine-tuning, read `skills/imitation-pretraining/SKILL.md`.
+6. For the next-stage latent-state or distillation pipeline, read `skills/improved-training-pipeline/SKILL.md`.
 
 ## Key Facts
 
@@ -41,7 +42,8 @@ Use this skill to understand the current default `a1` task and to guide changes 
 
 - Do not rely on adding a key to `terrain_dict` alone. The ordered values become `terrain_proportions`, and `Terrain.make_terrain()` interprets cumulative ranges by fixed position.
 - Do not update copied or stale files under `legged_gym/legged_gym/scripts/legged_gym/` unless runtime inspection proves they are active.
+- Preserve the one-robot-actor semantics used by the base task when adding additional dynamic actors; resets and pushes should address robot actor indices rather than all root states.
 
 ## Reference
 
-The detailed construction notes live in [references/a1-parkour-tasks.md](references/a1-parkour-tasks.md).
+The detailed construction notes live in [references/a1-dynamic-task-design.md](references/a1-dynamic-task-design.md).
