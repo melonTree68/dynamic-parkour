@@ -1,0 +1,4 @@
+interface:
+  display_name: "Augment Environment Latent"
+  short_description: "Add dynamic state to a1_dynamic environment latents."
+  default_prompt: "Use $augment-env-latent to design latent environment information augmentation for a1_dynamic."

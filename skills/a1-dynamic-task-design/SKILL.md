@@ -25,7 +25,7 @@ Use this skill to understand and modify the `a1_dynamic` task: a dynamic-obstacl
 3. Keep `a1_dynamic` separate from `a1`: prefer dynamic-specific config, metadata, actors, and registry entries over changing static-task semantics.
 4. When changing dynamic terrain families, update both the terrain proportions/config and the positional dispatcher in `Terrain.make_terrain()`.
 5. For training-pipeline work involving static A1 expert imitation before `a1_dynamic` base RL fine-tuning, read `skills/imitation-pretraining/SKILL.md`.
-6. For the next-stage latent-state or distillation pipeline, read `skills/improved-training-pipeline/SKILL.md`.
+6. For the next-stage environment-latent augmentation pipeline, read `skills/augment-env-latent/SKILL.md`.
 
 ## Key Facts
 
