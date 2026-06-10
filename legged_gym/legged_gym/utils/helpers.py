@@ -346,6 +346,13 @@ def get_args():
             "help": "Checkpoint interval used only by imitation pretraining.",
         },
         {"name": "--exptid", "type": str, "help": "exptid"},
+        {
+            "name": "--eval_terrain",
+            "type": str,
+            "nargs": "*",
+            "default": None,
+            "help": "Terrain names to evaluate. If omitted or passed without names, use the task default eval terrains.",
+        },
         {"name": "--resumeid", "type": str, "help": "exptid"},
         {"name": "--daggerid", "type": str, "help": "name of dagger run"},
         {
@@ -624,17 +631,12 @@ def parse_arguments(
                 help_str = argument["help"]
 
             if "type" in argument:
+                argument_kwargs = {"type": argument["type"], "help": help_str}
                 if "default" in argument:
-                    parser.add_argument(
-                        argument["name"],
-                        type=argument["type"],
-                        default=argument["default"],
-                        help=help_str,
-                    )
-                else:
-                    parser.add_argument(
-                        argument["name"], type=argument["type"], help=help_str
-                    )
+                    argument_kwargs["default"] = argument["default"]
+                if "nargs" in argument:
+                    argument_kwargs["nargs"] = argument["nargs"]
+                parser.add_argument(argument["name"], **argument_kwargs)
             elif "action" in argument:
                 parser.add_argument(
                     argument["name"], action=argument["action"], help=help_str
@@ -645,7 +647,7 @@ def parse_arguments(
             print(
                 "ERROR: command line argument name, type/action must be defined, argument not added to parser"
             )
-            print("supported keys: name, type, default, action, help")
+            print("supported keys: name, type, default, action, nargs, help")
             print()
 
     args = parser.parse_args()

@@ -50,6 +50,18 @@ from legged_gym.utils import webviewer
 from tqdm import tqdm
 
 
+DEFAULT_EVAL_TERRAINS = {
+    "a1": ["parkour", "parkour_hurdle", "parkour_step", "parkour_gap"],
+    "a1_dynamic": [
+        "dynamic_hurdle",
+        "dynamic_gap",
+        "dynamic_tilted_pads",
+        "dynamic_step",
+        "dynamic_demo",
+    ],
+}
+
+
 def get_load_path(root, load_run=-1, checkpoint=-1, model_name_include="model"):
 
     if checkpoint == -1:
@@ -63,6 +75,34 @@ def get_load_path(root, load_run=-1, checkpoint=-1, model_name_include="model"):
 
     # load_path = root + model
     return model, checkpoint
+
+
+def set_eval_terrain_distribution(env_cfg, task, terrain_names):
+    if not terrain_names:
+        terrain_names = DEFAULT_EVAL_TERRAINS.get(task, [])
+    if not terrain_names:
+        env_cfg.terrain.terrain_dict = {
+            name: 0.0 for name in env_cfg.terrain.terrain_dict
+        }
+        return
+
+    terrain_names = list(dict.fromkeys(terrain_names))
+    unknown_terrains = [
+        name for name in terrain_names if name not in env_cfg.terrain.terrain_dict
+    ]
+    if unknown_terrains:
+        raise ValueError(
+            "Unknown eval terrain(s): {}. Available terrains: {}".format(
+                ", ".join(unknown_terrains),
+                ", ".join(env_cfg.terrain.terrain_dict.keys()),
+            )
+        )
+
+    terrain_weight = 1.0 / len(terrain_names)
+    env_cfg.terrain.terrain_dict = {
+        name: terrain_weight if name in terrain_names else 0.0
+        for name in env_cfg.terrain.terrain_dict
+    }
 
 
 def play(args):
@@ -81,37 +121,7 @@ def play(args):
     env_cfg.terrain.num_rows = 5
     env_cfg.terrain.num_cols = 5
     env_cfg.terrain.height = [0.02, 0.02]
-    env_cfg.terrain.terrain_dict = {
-        "smooth slope": 0.0,
-        "rough slope up": 0.0,
-        "rough slope down": 0.0,
-        "rough stairs up": 0.0,
-        "rough stairs down": 0.0,
-        "discrete": 0.0,
-        "stepping stones": 0.0,
-        "gaps": 0.0,
-        "smooth flat": 0,
-        "pit": 0.0,
-        "wall": 0.0,
-        "platform": 0.0,
-        "large stairs up": 0.0,
-        "large stairs down": 0.0,
-        "parkour": 0.25,
-        "parkour_hurdle": 0.25,
-        "parkour_flat": 0.0,
-        "parkour_step": 0.25,
-        "parkour_gap": 0.25,
-        "demo": 0,
-    }
-    if args.task == "a1_dynamic":
-        env_cfg.terrain.terrain_dict = {
-            **{name: 0.0 for name in env_cfg.terrain.terrain_dict},
-            "dynamic_hurdle": 0.2,
-            "dynamic_gap": 0.2,
-            "dynamic_tilted_pads": 0.2,
-            "dynamic_step": 0.2,
-            "dynamic_demo": 0.2,
-        }
+    set_eval_terrain_distribution(env_cfg, args.task, args.eval_terrain)
 
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
     env_cfg.terrain.curriculum = False

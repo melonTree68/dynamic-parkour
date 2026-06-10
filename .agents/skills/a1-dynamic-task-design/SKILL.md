@@ -36,6 +36,7 @@ Use this skill to understand and modify the `a1_dynamic` task: a dynamic-obstacl
 - `A1DynamicParkourCfg` inherits from `A1ParkourCfg`; tune user-facing dynamic obstacle parameters in `legged_gym/legged_gym/envs/a1/a1_dynamic_config.py`.
 - Most parkour behavior comes from inherited `LeggedRobotCfg`, shared `LeggedRobot`, and `Terrain`.
 - `play.py` and `evaluate.py` override terrain distribution during testing, so task changes may need matching updates there.
+- `evaluate.py` accepts `--eval_terrain` with zero or more terrain names: omitted/empty uses task defaults (`a1`: `parkour`, `parkour_hurdle`, `parkour_step`, `parkour_gap`; `a1_dynamic`: `dynamic_hurdle`, `dynamic_gap`, `dynamic_tilted_pads`, `dynamic_step`, `dynamic_demo`), while named terrains are evaluated with equal proportions and all others set to zero.
 - `a1_dynamic` can be imitation-pretrained from a static A1 expert before the original base RL training stage; see `skills/imitation-pretraining/SKILL.md`.
 
 ## Cautions
