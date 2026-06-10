@@ -8,9 +8,9 @@ class A1DynamicParkourCfg(A1ParkourCfg):
         features_per_group = 15
         recovery_modes = {
             "hurdle": "roa",
-            "gap": "teacher_student",
+            "gap": "roa",
             "step": "roa",
-            "tilted_pad": "teacher_student",
+            "tilted_pad": "roa",
         }
         roa_loss_weight = 1.0
         teacher_student_loss_weight = 1.0
