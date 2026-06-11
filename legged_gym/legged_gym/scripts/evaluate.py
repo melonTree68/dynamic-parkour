@@ -279,6 +279,7 @@ def play(args):
         metrics_writer.writerow(
             [
                 checkpoint,
+                args.eval_terrain,
                 rew_mean,
                 rew_std,
                 len_mean,
@@ -290,16 +291,16 @@ def play(args):
             ]
         )
 
-    print("Mean reward: {:.2f}$\pm${:.2f}".format(rew_mean, rew_std))
-    print("Mean episode length: {:.2f}$\pm${:.2f}".format(len_mean, len_std))
+    print("Mean reward: {:.2f} ± {:.2f}".format(rew_mean, rew_std))
+    print("Mean episode length: {:.2f} ± {:.2f}".format(len_mean, len_std))
     print(
-        "Mean number of waypoints: {:.2f}$\pm${:.2f}".format(
+        "Mean number of waypoints: {:.2f} ± {:.2f}".format(
             num_waypoints_mean, num_waypoints_std
         )
     )
-    # print("Mean time to fall: {:.2f}$\pm${:.2f}".format(time_to_fall_mean, time_to_fall_std))
+    # print("Mean time to fall: {:.2f} ± {:.2f}".format(time_to_fall_mean, time_to_fall_std))
     print(
-        "Mean edge violation: {:.2f}$\pm${:.2f}".format(
+        "Mean edge violation: {:.2f} ± {:.2f}".format(
             edge_violation_mean, edge_violation_std
         )
     )
