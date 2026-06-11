@@ -48,6 +48,12 @@ When the user asks for a command:
 - Do not include `conda run -n parkour` in the displayed command, even though executed Python commands should use the env.
 - Do not include `--device` flags in the displayed command.
 
+## Plotting
+
+- Keep plotting scripts under `plots/`.
+- For quick comparison plots, prefer top-of-file string configuration over CLI args when the script is meant to be edited and rerun locally.
+- `plots/plot_multiple_metrics.py` overlays multiple `metrics_all.csv` files per metric using a `csv_path: label` dict, `output_path`, and `eval_terrain` selector.
+
 ## Collaboration Style
 
 - Be brief unless the user asks for detail.
