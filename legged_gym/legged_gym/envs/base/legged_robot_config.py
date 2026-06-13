@@ -429,6 +429,7 @@ class LeggedRobotCfgPPO(BaseConfig):
 
     class depth_encoder:
         if_depth = LeggedRobotCfg.depth.use_camera
+        train_depth_encoder_loss = False
         depth_shape = LeggedRobotCfg.depth.resized
         buffer_len = LeggedRobotCfg.depth.buffer_len
         hidden_dims = 512

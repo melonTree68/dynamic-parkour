@@ -179,6 +179,8 @@ def update_cfg_from_args(env_cfg, cfg_train, args):
         # alg runner parameters
         if args.use_camera:
             cfg_train.depth_encoder.if_depth = args.use_camera
+        if getattr(args, "train_depth_encoder_loss", False):
+            cfg_train.depth_encoder.train_depth_encoder_loss = True
         if args.max_iterations is not None:
             cfg_train.runner.max_iterations = args.max_iterations
         if args.resume:
@@ -360,6 +362,12 @@ def get_args():
             "action": "store_true",
             "default": False,
             "help": "render camera for distillation",
+        },
+        {
+            "name": "--train_depth_encoder_loss",
+            "action": "store_true",
+            "default": False,
+            "help": "Enable scan-latent matching loss during camera distillation.",
         },
         {
             "name": "--mask_obs",

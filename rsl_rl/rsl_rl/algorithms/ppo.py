@@ -535,6 +535,8 @@ class PPO:
         obs_batch=None,
         dynamic_env_student_batch=None,
         dynamic_env_teacher_batch=None,
+        depth_latent_batch=None,
+        scandots_latent_batch=None,
     ):
         if self.if_depth:
             depth_actor_loss = (
@@ -552,17 +554,34 @@ class PPO:
                 dynamic_env_loss = self._depth_dynamic_env_loss(
                     obs_batch, dynamic_env_student_batch, dynamic_env_teacher_batch
                 )
+            if depth_latent_batch is None or scandots_latent_batch is None:
+                depth_encoder_loss = yaw_student_batch.new_tensor(0.0)
+            else:
+                depth_encoder_loss = (
+                    (scandots_latent_batch.detach() - depth_latent_batch)
+                    .norm(p=2, dim=1)
+                    .mean()
+                )
             loss = (
                 depth_actor_loss
                 + yaw_loss
                 + self.dynamic_env_teacher_student_loss_weight * dynamic_env_loss
+                + depth_encoder_loss
             )
 
             self.depth_actor_optimizer.zero_grad()
             loss.backward()
-            nn.utils.clip_grad_norm_(self.depth_actor.parameters(), self.max_grad_norm)
+            nn.utils.clip_grad_norm_(
+                [*self.depth_actor.parameters(), *self.depth_encoder.parameters()],
+                self.max_grad_norm,
+            )
             self.depth_actor_optimizer.step()
-            return depth_actor_loss.item(), yaw_loss.item(), dynamic_env_loss.item()
+            return (
+                depth_actor_loss.item(),
+                yaw_loss.item(),
+                dynamic_env_loss.item(),
+                depth_encoder_loss.item(),
+            )
 
     def update_depth_both(
         self,

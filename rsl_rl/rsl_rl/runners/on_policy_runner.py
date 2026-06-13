@@ -425,8 +425,6 @@ class OnPolicyRunner:
             )
             scandots_latent_buffer = torch.cat(scandots_latent_buffer, dim=0)
             depth_latent_buffer = torch.cat(depth_latent_buffer, dim=0)
-            depth_encoder_loss = 0
-            # depth_encoder_loss = self.alg.update_depth_encoder(depth_latent_buffer, scandots_latent_buffer)
 
             actions_teacher_buffer = torch.cat(actions_teacher_buffer, dim=0)
             actions_student_buffer = torch.cat(actions_student_buffer, dim=0)
@@ -435,19 +433,29 @@ class OnPolicyRunner:
             dynamic_env_latent_buffer = torch.cat(dynamic_env_latent_buffer, dim=0)
             dynamic_env_teacher_buffer = torch.cat(dynamic_env_teacher_buffer, dim=0)
             obs_teacher_student_buffer = torch.cat(obs_teacher_student_buffer, dim=0)
-            depth_actor_loss, yaw_loss, depth_dynamic_env_loss = (
-                self.alg.update_depth_actor(
-                    actions_student_buffer,
-                    actions_teacher_buffer,
-                    yaw_buffer_student,
-                    yaw_buffer_teacher,
-                    obs_teacher_student_buffer,
-                    dynamic_env_latent_buffer,
-                    dynamic_env_teacher_buffer,
-                )
+            if self.depth_encoder_cfg.get("train_depth_encoder_loss", False):
+                depth_loss_student = depth_latent_buffer
+                depth_loss_teacher = scandots_latent_buffer
+            else:
+                depth_loss_student = None
+                depth_loss_teacher = None
+            (
+                depth_actor_loss,
+                yaw_loss,
+                depth_dynamic_env_loss,
+                depth_encoder_loss,
+            ) = self.alg.update_depth_actor(
+                actions_student_buffer,
+                actions_teacher_buffer,
+                yaw_buffer_student,
+                yaw_buffer_teacher,
+                obs_teacher_student_buffer,
+                dynamic_env_latent_buffer,
+                dynamic_env_teacher_buffer,
+                depth_loss_student,
+                depth_loss_teacher,
             )
 
-            # depth_encoder_loss, depth_actor_loss = self.alg.update_depth_both(depth_latent_buffer, scandots_latent_buffer, actions_student_buffer, actions_teacher_buffer)
             stop = time.time()
             learn_time = stop - start
 
