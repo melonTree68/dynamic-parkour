@@ -43,7 +43,12 @@ from .cassie.cassie import Cassie
 from .cassie.cassie_config import CassieRoughCfg, CassieRoughCfgPPO
 from .a1.a1_config import A1RoughCfg, A1RoughCfgPPO
 from .a1.a1_parkour_config import A1ParkourCfg, A1ParkourCfgPPO
-from .a1.a1_dynamic_config import A1DynamicParkourCfg, A1DynamicParkourCfgPPO
+from .a1.a1_dynamic_config import (
+    A1DynamicParkourCfg,
+    A1DynamicParkourCfgPPO,
+    A1MixedParkourCfg,
+    A1MixedParkourCfgPPO,
+)
 from .go1.go1_config import Go1RoughCfg, Go1RoughCfgPPO
 
 import os
@@ -57,5 +62,8 @@ from legged_gym.utils.task_registry import task_registry
 task_registry.register("a1", LeggedRobot, A1ParkourCfg(), A1ParkourCfgPPO())
 task_registry.register(
     "a1_dynamic", DynamicLeggedRobot, A1DynamicParkourCfg(), A1DynamicParkourCfgPPO()
+)
+task_registry.register(
+    "a1_mixed", DynamicLeggedRobot, A1MixedParkourCfg(), A1MixedParkourCfgPPO()
 )
 task_registry.register("go1", LeggedRobot, Go1RoughCfg(), Go1RoughCfgPPO())

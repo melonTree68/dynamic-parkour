@@ -4,11 +4,12 @@ from isaacgym import terrain_utils
 
 import legged_gym.envs  # Registers tasks before importing utility modules.
 from legged_gym.envs.a1.a1_dynamic import DynamicLeggedRobot
-from legged_gym.envs.a1.a1_dynamic_config import A1DynamicParkourCfg
+from legged_gym.envs.a1.a1_dynamic_config import A1DynamicParkourCfg, A1MixedParkourCfg
 from legged_gym.envs.base.legged_robot import LeggedRobot
 from legged_gym.utils import task_registry
 from legged_gym.utils.terrain import (
     DYNAMIC_DEMO,
+    DYNAMIC_MIXED_DEMO,
     DYNAMIC_GAP,
     DYNAMIC_HURDLE,
     DYNAMIC_STEP,
@@ -16,8 +17,10 @@ from legged_gym.utils.terrain import (
     dynamic_demo_terrain,
     dynamic_gap_terrain,
     dynamic_hurdle_terrain,
+    mixed_demo_terrain,
     dynamic_step_terrain,
     dynamic_tilted_pads_terrain,
+    Terrain,
 )
 
 DYNAMIC_CFG = A1DynamicParkourCfg.dynamic_obstacles
@@ -26,17 +29,23 @@ Y_RANGE = A1DynamicParkourCfg.terrain.y_range
 
 def test_dynamic_task_registration_preserves_a1_configuration():
     dynamic_cfg, _ = task_registry.get_cfgs("a1_dynamic")
+    mixed_cfg, _ = task_registry.get_cfgs("a1_mixed")
     static_cfg, _ = task_registry.get_cfgs("a1")
     assert task_registry.get_task_class("a1_dynamic") is DynamicLeggedRobot
+    assert task_registry.get_task_class("a1_mixed") is DynamicLeggedRobot
     assert task_registry.get_task_class("a1") is LeggedRobot
     assert dynamic_cfg.env.num_envs == 2048
+    assert mixed_cfg.env.num_envs == dynamic_cfg.env.num_envs
     assert static_cfg.env.n_dynamic_env_latent == 0
     assert dynamic_cfg.env.n_dynamic_env_latent == 30
+    assert mixed_cfg.env.n_dynamic_env_latent == dynamic_cfg.env.n_dynamic_env_latent
     assert (
         dynamic_cfg.env.num_observations
         == static_cfg.env.num_observations + dynamic_cfg.env.n_dynamic_env_latent
     )
+    assert mixed_cfg.env.num_observations == dynamic_cfg.env.num_observations
     assert dynamic_cfg.rewards.scales.bad_dynamic_takeoff == -1.0
+    assert mixed_cfg.rewards.scales.bad_dynamic_takeoff == -1.0
     dynamic_weights = [
         dynamic_cfg.terrain.terrain_dict[name]
         for name in (
@@ -47,15 +56,30 @@ def test_dynamic_task_registration_preserves_a1_configuration():
             "dynamic_demo",
         )
     ]
+    mixed_weights = [
+        mixed_cfg.terrain.terrain_dict[name]
+        for name in (
+            "dynamic_hurdle",
+            "dynamic_gap",
+            "dynamic_tilted_pads",
+            "parkour_step",
+            "mixed_demo",
+        )
+    ]
     assert dynamic_weights == [0.2] * 5
-    assert sum(dynamic_weights) == 1.0
+    assert mixed_weights == [0.2] * 5
+    assert dynamic_cfg.terrain.terrain_dict["mixed_demo"] == 0.0
+    assert mixed_cfg.terrain.terrain_dict["dynamic_step"] == 0.0
+    assert mixed_cfg.terrain.terrain_dict["dynamic_demo"] == 0.0
+    assert sum(dynamic_cfg.terrain.terrain_dict.values()) == 1.0
+    assert sum(mixed_cfg.terrain.terrain_dict.values()) == 1.0
     assert hasattr(dynamic_cfg.dynamic_obstacles, "hurdle_period_min")
     assert hasattr(dynamic_cfg.dynamic_obstacles, "gap_spacing")
     assert hasattr(dynamic_cfg.dynamic_obstacles, "step_height_max")
     assert hasattr(dynamic_cfg.dynamic_obstacles, "tilted_pad_y_range_coeff")
     assert hasattr(dynamic_cfg.dynamic_obstacles, "dynamic_demo_spacing")
-    assert dynamic_cfg.dynamic_env_latent.num_future_groups == 2
-    assert dynamic_cfg.dynamic_env_latent.features_per_group == 15
+    assert mixed_cfg.dynamic_env_latent.num_future_groups == 2
+    assert mixed_cfg.dynamic_env_latent.features_per_group == 15
 
 
 def make_subterrain():
@@ -71,6 +95,7 @@ def test_dynamic_generators_create_six_crossings_and_eight_goals():
         (dynamic_tilted_pads_terrain, DYNAMIC_TILTED_PADS),
         (dynamic_step_terrain, DYNAMIC_STEP),
         (dynamic_demo_terrain, DYNAMIC_DEMO),
+        (mixed_demo_terrain, DYNAMIC_MIXED_DEMO),
     ]
     for generator, family in generators:
         terrain = make_subterrain()
@@ -184,6 +209,32 @@ def test_dynamic_demo_has_mixed_motion_sequence_and_gap_goal_mapping():
     assert np.array_equal(terrain.dynamic_goal_groups[3:5], [2, 2])
 
 
+def test_mixed_demo_replaces_dynamic_step_with_static_heightfield_step():
+    terrain = make_subterrain()
+    mixed_demo_terrain(
+        terrain, difficulty=0.5, num_goals=8, dynamic_cfg=DYNAMIC_CFG, y_range=Y_RANGE
+    )
+    types = terrain.dynamic_motion_types
+    assert terrain.dynamic_family == DYNAMIC_MIXED_DEMO
+    assert terrain.goals.shape == (8, 2)
+    assert types[0, 0] == DYNAMIC_HURDLE
+    assert np.all(types[1] == 0)
+    assert np.array_equal(types[2], [DYNAMIC_GAP, DYNAMIC_GAP])
+    assert types[3, 0] == DYNAMIC_TILTED_PADS
+    assert types[4, 0] == DYNAMIC_TILTED_PADS
+    assert np.array_equal(terrain.dynamic_goal_groups[3:5], [2, 2])
+    assert terrain.dynamic_goal_groups[2] == -1
+    assert np.array_equal(terrain.dynamic_obstacle_specs[3:5, 0, 6], [1.0, -1.0])
+
+    step_goal = terrain.goals[2]
+    px = round(step_goal[0] / terrain.horizontal_scale)
+    py = round(step_goal[1] / terrain.horizontal_scale)
+    assert terrain.height_field_raw[px, py] == round(
+        (0.1 + 0.35 * 0.5) / terrain.vertical_scale
+    )
+    assert np.allclose(terrain.dynamic_obstacle_specs[1, :, 2], -5.0)
+
+
 def test_dynamic_demo_uses_own_spacing_ranges():
     old_spacing = DYNAMIC_CFG.dynamic_demo_spacing
     DYNAMIC_CFG.dynamic_demo_spacing = [
@@ -266,3 +317,19 @@ def test_dynamic_tilted_pad_y_range_coeff_scales_lateral_offsets():
         assert np.all(np.abs(offsets) <= max_offset + 1e-6)
     finally:
         DYNAMIC_CFG.tilted_pad_y_range_coeff = old_coeff
+
+
+def test_make_terrain_dispatches_mixed_demo_family():
+    terrain_obj = Terrain.__new__(Terrain)
+    terrain_obj.length_per_env_pixels = 360
+    terrain_obj.width_per_env_pixels = 80
+    terrain_obj.num_goals = 8
+    terrain_obj.proportions = [0.0] * 25 + [1.0]
+    terrain_obj.cfg = A1MixedParkourCfg.terrain
+    terrain_obj.cfg.dynamic_obstacles = A1MixedParkourCfg.dynamic_obstacles
+
+    terrain = terrain_obj.make_terrain(choice=0.5, difficulty=0.5)
+
+    assert terrain.idx == DYNAMIC_MIXED_DEMO
+    assert terrain.dynamic_family == DYNAMIC_MIXED_DEMO
+    assert terrain.goals.shape == (8, 2)

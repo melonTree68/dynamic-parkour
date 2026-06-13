@@ -274,29 +274,16 @@ def play(args):
     env_cfg.terrain.num_rows = 5
     env_cfg.terrain.num_cols = 5
     env_cfg.terrain.height = [0.02, 0.02]
-    env_cfg.terrain.terrain_dict = {
-        "smooth slope": 0.0,
-        "rough slope up": 0.0,
-        "rough slope down": 0.0,
-        "rough stairs up": 0.0,
-        "rough stairs down": 0.0,
-        "discrete": 0.0,
-        "stepping stones": 0.0,
-        "gaps": 0.0,
-        "smooth flat": 0,
-        "pit": 0.0,
-        "wall": 0.0,
-        "platform": 0.0,
-        "large stairs up": 0.0,
-        "large stairs down": 0.0,
-        "parkour": 0.2,
-        "parkour_hurdle": 0.2,
-        "parkour_flat": 0.0,
-        "parkour_step": 0.2,
-        "parkour_gap": 0.2,
-        "demo": 0.2,
-    }
-    if args.task == "a1_dynamic":
+    if args.task == "a1":
+        env_cfg.terrain.terrain_dict = {
+            **{name: 0.0 for name in env_cfg.terrain.terrain_dict},
+            "parkour": 0.2,
+            "parkour_hurdle": 0.2,
+            "parkour_step": 0.2,
+            "parkour_gap": 0.2,
+            "demo": 0.2,
+        }
+    elif args.task == "a1_dynamic":
         env_cfg.terrain.terrain_dict = {
             **{name: 0.0 for name in env_cfg.terrain.terrain_dict},
             "dynamic_hurdle": 0.2,
@@ -305,6 +292,17 @@ def play(args):
             "dynamic_step": 0.2,
             "dynamic_demo": 0.2,
         }
+    elif args.task == "a1_mixed":
+        env_cfg.terrain.terrain_dict = {
+            **{name: 0.0 for name in env_cfg.terrain.terrain_dict},
+            "dynamic_hurdle": 0.2,
+            "dynamic_gap": 0.2,
+            "dynamic_tilted_pads": 0.2,
+            "parkour_step": 0.2,
+            "mixed_demo": 0.2,
+        }
+    else:
+        raise ValueError(f"Unknown task: {args.task}")
 
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
     env_cfg.terrain.curriculum = False

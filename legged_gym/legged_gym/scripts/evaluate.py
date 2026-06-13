@@ -59,6 +59,13 @@ DEFAULT_EVAL_TERRAINS = {
         "dynamic_step",
         "dynamic_demo",
     ],
+    "a1_mixed": [
+        "dynamic_hurdle",
+        "dynamic_gap",
+        "dynamic_tilted_pads",
+        "parkour_step",
+        "mixed_demo",
+    ],
 }
 
 
@@ -126,7 +133,7 @@ def play(args):
     env_cfg.terrain.terrain_proportions = list(env_cfg.terrain.terrain_dict.values())
     env_cfg.terrain.curriculum = False
     env_cfg.terrain.max_difficulty = False  # if args.task == "a1"
-    if args.task == "a1_dynamic":
+    if args.task in ["a1_dynamic", "a1_mixed"]:
         env_cfg.terrain.max_difficulty = True
 
     env_cfg.depth.angle = [0, 1]

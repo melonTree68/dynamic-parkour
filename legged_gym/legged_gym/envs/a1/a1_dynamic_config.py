@@ -48,6 +48,7 @@ class A1DynamicParkourCfg(A1ParkourCfg):
             "dynamic_tilted_pads": 0.2,
             "dynamic_step": 0.2,
             "dynamic_demo": 0.2,
+            "mixed_demo": 0.0,
         }
         terrain_proportions = list(terrain_dict.values())
 
@@ -108,3 +109,24 @@ class A1DynamicParkourCfgPPO(A1ParkourCfgPPO):
     class runner(A1ParkourCfgPPO.runner):
         run_name = ""
         experiment_name = "a1_dynamic"
+
+
+class A1MixedParkourCfg(A1DynamicParkourCfg):
+    class terrain(A1DynamicParkourCfg.terrain):
+        terrain_dict = {
+            **A1DynamicParkourCfg.terrain.terrain_dict,
+            "dynamic_hurdle": 0.2,
+            "dynamic_gap": 0.2,
+            "dynamic_tilted_pads": 0.2,
+            "dynamic_step": 0.0,
+            "dynamic_demo": 0.0,
+            "parkour_step": 0.2,
+            "mixed_demo": 0.2,
+        }
+        terrain_proportions = list(terrain_dict.values())
+
+
+class A1MixedParkourCfgPPO(A1DynamicParkourCfgPPO):
+    class runner(A1DynamicParkourCfgPPO.runner):
+        run_name = ""
+        experiment_name = "a1_mixed"

@@ -46,6 +46,7 @@ DYNAMIC_GAP = 22
 DYNAMIC_TILTED_PADS = 23
 DYNAMIC_STEP = 24
 DYNAMIC_DEMO = 25
+DYNAMIC_MIXED_DEMO = 26
 DYNAMIC_OBSTACLES_PER_TILE = 6
 DYNAMIC_SLOTS_PER_OBSTACLE = 2
 
@@ -495,6 +496,16 @@ class Terrain:
                 self.cfg.y_range,
             )
             self.add_roughness(terrain)
+        elif choice < self.proportions[25]:
+            idx = DYNAMIC_MIXED_DEMO
+            mixed_demo_terrain(
+                terrain,
+                difficulty,
+                self.num_goals,
+                self.cfg.dynamic_obstacles,
+                self.cfg.y_range,
+            )
+            self.add_roughness(terrain)
         # np.set_printoptions(precision=2)
         # print(np.array(self.proportions), choice)
         terrain.idx = idx
@@ -823,6 +834,124 @@ def dynamic_demo_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
         0,
         DYNAMIC_STEP,
         [x, y, step_height - step_body / 2, step_len, step_width, step_body, 0.0],
+    )
+    goals[2] = [x, y]
+
+    platform_len, platform_width, thickness = dynamic_cfg.gap_platform_dims
+    gap_size = _dynamic_lerp(dynamic_cfg.gap_size, difficulty)
+    max_motion = _dynamic_lerp(dynamic_cfg.gap_amplitude, difficulty)
+    x += gap_size + np.random.uniform(*demo_spacing[2])
+    y = _dynamic_y(mid_y, y_range)
+    gap_offset = (gap_size + platform_len) / 2
+    _carve_dynamic_slice(
+        terrain, x - gap_size / 2 - max_motion, x + gap_size / 2 + max_motion, pit_depth
+    )
+    _set_dynamic_slot(
+        terrain,
+        2,
+        0,
+        DYNAMIC_GAP,
+        [
+            x - gap_offset,
+            y,
+            -thickness / 2,
+            platform_len,
+            platform_width,
+            thickness,
+            0.0,
+        ],
+    )
+    _set_dynamic_slot(
+        terrain,
+        2,
+        1,
+        DYNAMIC_GAP,
+        [
+            x + gap_offset,
+            y,
+            -thickness / 2,
+            platform_len,
+            platform_width,
+            thickness,
+            0.0,
+        ],
+    )
+    goals[3] = [x - gap_offset, y]
+    goals[4] = [x + gap_offset, y]
+    terrain.dynamic_goal_mask[3:5] = True
+    terrain.dynamic_goal_groups[3:5] = 2
+
+    pad_len, pad_width, pad_thickness = dynamic_cfg.tilted_pad_dims
+    tilted_y_range = _dynamic_tilted_pad_y_range(dynamic_cfg, y_range)
+    for pad_idx, (group, goal_idx) in enumerate(((3, 5), (4, 6))):
+        x += pad_len + np.random.uniform(*demo_spacing[3 + pad_idx])
+        _carve_dynamic_slice(terrain, x - pad_len / 2, x + pad_len / 2, pit_depth)
+        roll_sign = 1.0 if pad_idx % 2 == 0 else -1.0
+        y = _dynamic_signed_y(mid_y, tilted_y_range, roll_sign)
+        _set_dynamic_slot(
+            terrain,
+            group,
+            0,
+            DYNAMIC_TILTED_PADS,
+            [x, y, -pad_thickness / 2, pad_len, pad_width, pad_thickness, roll_sign],
+        )
+        goals[goal_idx] = [x, y]
+
+    goals[-1] = [min(x + 1.2, 17.0), mid_y]
+    terrain.goals = goals
+
+
+def _set_static_step_segment(terrain, center_x, center_y, length, width, height):
+    x1 = max(0, round((center_x - length / 2) / terrain.horizontal_scale))
+    x2 = min(terrain.width, round((center_x + length / 2) / terrain.horizontal_scale))
+    y1 = max(0, round((center_y - width / 2) / terrain.horizontal_scale))
+    y2 = min(terrain.length, round((center_y + width / 2) / terrain.horizontal_scale))
+    terrain.height_field_raw[x1:x2, y1:y2] = round(height / terrain.vertical_scale)
+
+
+def mixed_demo_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
+    goals, mid_y = _init_dynamic_metadata(
+        terrain, DYNAMIC_MIXED_DEMO, difficulty, num_goals
+    )
+    pit_depth = _dynamic_pit_depth(terrain, difficulty)
+    demo_spacing = dynamic_cfg.dynamic_demo_spacing
+    x = 2.0
+    goals[0] = [1.5, mid_y]
+
+    hurdle_height = np.random.uniform(
+        _dynamic_lerp(dynamic_cfg.hurdle_height_min, difficulty),
+        _dynamic_lerp(dynamic_cfg.hurdle_height_max, difficulty),
+    )
+    hurdle_body = _hurdle_body_height(dynamic_cfg)
+    x += np.random.uniform(*demo_spacing[0])
+    y = _dynamic_y(mid_y, y_range)
+    _set_dynamic_slot(
+        terrain,
+        0,
+        0,
+        DYNAMIC_HURDLE,
+        [
+            x,
+            y,
+            hurdle_height - hurdle_body / 2,
+            dynamic_cfg.hurdle_thickness,
+            dynamic_cfg.hurdle_width,
+            hurdle_body,
+            0.0,
+        ],
+    )
+    goals[1] = [x - 0.45, y]
+
+    step_len, step_width = dynamic_cfg.step_dims
+    x += step_len + np.random.uniform(*demo_spacing[1])
+    y = _dynamic_y(mid_y, y_range)
+    _set_static_step_segment(
+        terrain,
+        x,
+        y,
+        step_len,
+        step_width,
+        0.1 + 0.35 * difficulty,
     )
     goals[2] = [x, y]
 
