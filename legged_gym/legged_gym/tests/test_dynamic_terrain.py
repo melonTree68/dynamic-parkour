@@ -1,6 +1,10 @@
+import types
+
 import numpy as np
 
 from isaacgym import terrain_utils
+
+import torch
 
 import legged_gym.envs  # Registers tasks before importing utility modules.
 from legged_gym.envs.a1.a1_dynamic import DynamicLeggedRobot
@@ -10,14 +14,17 @@ from legged_gym.utils import task_registry
 from legged_gym.utils.terrain import (
     DYNAMIC_DEMO,
     DYNAMIC_MIXED_DEMO,
+    DYNAMIC_MIXED_TILTED_PADS,
     DYNAMIC_GAP,
     DYNAMIC_HURDLE,
+    DYNAMIC_NONE,
     DYNAMIC_STEP,
     DYNAMIC_TILTED_PADS,
     dynamic_demo_terrain,
     dynamic_gap_terrain,
     dynamic_hurdle_terrain,
     mixed_demo_terrain,
+    mixed_tilted_pads_terrain,
     dynamic_step_terrain,
     dynamic_tilted_pads_terrain,
     Terrain,
@@ -61,7 +68,7 @@ def test_dynamic_task_registration_preserves_a1_configuration():
         for name in (
             "dynamic_hurdle",
             "dynamic_gap",
-            "dynamic_tilted_pads",
+            "mixed_tilted_pads",
             "parkour_step",
             "mixed_demo",
         )
@@ -69,6 +76,8 @@ def test_dynamic_task_registration_preserves_a1_configuration():
     assert dynamic_weights == [0.2] * 5
     assert mixed_weights == [0.2] * 5
     assert dynamic_cfg.terrain.terrain_dict["mixed_demo"] == 0.0
+    assert dynamic_cfg.terrain.terrain_dict["mixed_tilted_pads"] == 0.0
+    assert mixed_cfg.terrain.terrain_dict["dynamic_tilted_pads"] == 0.0
     assert mixed_cfg.terrain.terrain_dict["dynamic_step"] == 0.0
     assert mixed_cfg.terrain.terrain_dict["dynamic_demo"] == 0.0
     assert sum(dynamic_cfg.terrain.terrain_dict.values()) == 1.0
@@ -93,6 +102,7 @@ def test_dynamic_generators_create_six_crossings_and_eight_goals():
         (dynamic_hurdle_terrain, DYNAMIC_HURDLE),
         (dynamic_gap_terrain, DYNAMIC_GAP),
         (dynamic_tilted_pads_terrain, DYNAMIC_TILTED_PADS),
+        (mixed_tilted_pads_terrain, DYNAMIC_MIXED_TILTED_PADS),
         (dynamic_step_terrain, DYNAMIC_STEP),
         (dynamic_demo_terrain, DYNAMIC_DEMO),
         (mixed_demo_terrain, DYNAMIC_MIXED_DEMO),
@@ -287,6 +297,91 @@ def test_dynamic_tilted_pads_have_alternating_fixed_roll_signs():
     assert np.allclose(terrain.goals[1:7, 1], terrain.dynamic_obstacle_specs[:, 0, 1])
 
 
+def test_mixed_tilted_pads_match_dynamic_tilted_pads_except_family():
+    np.random.seed(23)
+    dynamic_terrain = make_subterrain()
+    dynamic_tilted_pads_terrain(
+        dynamic_terrain,
+        difficulty=0.5,
+        num_goals=8,
+        dynamic_cfg=DYNAMIC_CFG,
+        y_range=Y_RANGE,
+    )
+
+    np.random.seed(23)
+    mixed_terrain = make_subterrain()
+    mixed_tilted_pads_terrain(
+        mixed_terrain,
+        difficulty=0.5,
+        num_goals=8,
+        dynamic_cfg=DYNAMIC_CFG,
+        y_range=Y_RANGE,
+    )
+
+    assert dynamic_terrain.dynamic_family == DYNAMIC_TILTED_PADS
+    assert mixed_terrain.dynamic_family == DYNAMIC_MIXED_TILTED_PADS
+    assert np.array_equal(
+        dynamic_terrain.height_field_raw, mixed_terrain.height_field_raw
+    )
+    assert np.allclose(dynamic_terrain.goals, mixed_terrain.goals)
+    assert np.allclose(
+        dynamic_terrain.dynamic_obstacle_specs, mixed_terrain.dynamic_obstacle_specs
+    )
+    assert np.array_equal(
+        dynamic_terrain.dynamic_motion_types, mixed_terrain.dynamic_motion_types
+    )
+    assert np.array_equal(
+        dynamic_terrain.dynamic_motion_groups, mixed_terrain.dynamic_motion_groups
+    )
+    assert np.array_equal(
+        dynamic_terrain.dynamic_goal_groups, mixed_terrain.dynamic_goal_groups
+    )
+    assert np.array_equal(
+        dynamic_terrain.dynamic_goal_mask, mixed_terrain.dynamic_goal_mask
+    )
+
+
+def test_mixed_tilted_pads_zero_dynamic_env_latent_features():
+    env = DynamicLeggedRobot.__new__(DynamicLeggedRobot)
+    env.num_envs = 2
+    env.device = torch.device("cpu")
+    env.num_dynamic_obstacles = 6
+    env.num_dynamic_slots = 2
+    env.cfg = types.SimpleNamespace(
+        dynamic_env_latent=types.SimpleNamespace(features_per_group=15),
+        dynamic_obstacles=types.SimpleNamespace(tilted_pad_min_roll_fraction=0.35),
+    )
+    env.dynamic_family = torch.tensor(
+        [DYNAMIC_TILTED_PADS, DYNAMIC_MIXED_TILTED_PADS], dtype=torch.long
+    )
+    env.dynamic_motion_types = torch.full((2, 6, 2), DYNAMIC_NONE, dtype=torch.long)
+    env.dynamic_motion_types[:, 0, 0] = DYNAMIC_TILTED_PADS
+    env.obstacle_root_states = torch.zeros(2, 6, 2, 13)
+    env.obstacle_root_states[:, 0, 0, :3] = torch.tensor([2.0, 0.25, 0.0])
+    env.dynamic_dims = torch.zeros(2, 6, 2, 3)
+    env.dynamic_dims[:, 0, 0] = torch.tensor(DYNAMIC_CFG.tilted_pad_dims)
+    env.dynamic_specs = torch.zeros(2, 6, 2, 7)
+    env.dynamic_specs[:, 0, 0, 6] = 1.0
+    env.root_states = torch.zeros(2, 13)
+    env.dynamic_offset = torch.zeros(2, 6)
+    env.dynamic_offset[:, 0] = 0.2
+    env.dynamic_velocity = torch.zeros(2, 6)
+    env.dynamic_velocity[:, 0] = 0.1
+    env.dynamic_amplitude = torch.zeros(2, 6)
+    env.dynamic_amplitude[:, 0] = 0.3
+    env.dynamic_period = torch.ones(2, 6) * 2.5
+    env.dynamic_phase = torch.zeros(2, 6)
+    env.dynamic_time = torch.zeros(2)
+
+    group_ids = torch.zeros(2, 1, dtype=torch.long)
+    features = DynamicLeggedRobot._build_dynamic_env_latent_features(env, group_ids)
+
+    assert features[0, 0, 0] == 1.0
+    assert features[0, 0, 4] == 1.0
+    assert torch.any(features[0, 0] != 0.0)
+    assert torch.allclose(features[1, 0], torch.zeros(15))
+
+
 def test_dynamic_tilted_pad_y_range_coeff_scales_lateral_offsets():
     old_coeff = DYNAMIC_CFG.tilted_pad_y_range_coeff
     DYNAMIC_CFG.tilted_pad_y_range_coeff = 0.25
@@ -324,7 +419,7 @@ def test_make_terrain_dispatches_mixed_demo_family():
     terrain_obj.length_per_env_pixels = 360
     terrain_obj.width_per_env_pixels = 80
     terrain_obj.num_goals = 8
-    terrain_obj.proportions = [0.0] * 25 + [1.0]
+    terrain_obj.proportions = [0.0] * 25 + [1.0, 1.0]
     terrain_obj.cfg = A1MixedParkourCfg.terrain
     terrain_obj.cfg.dynamic_obstacles = A1MixedParkourCfg.dynamic_obstacles
 
@@ -332,4 +427,20 @@ def test_make_terrain_dispatches_mixed_demo_family():
 
     assert terrain.idx == DYNAMIC_MIXED_DEMO
     assert terrain.dynamic_family == DYNAMIC_MIXED_DEMO
+    assert terrain.goals.shape == (8, 2)
+
+
+def test_make_terrain_dispatches_mixed_tilted_pads_family():
+    terrain_obj = Terrain.__new__(Terrain)
+    terrain_obj.length_per_env_pixels = 360
+    terrain_obj.width_per_env_pixels = 80
+    terrain_obj.num_goals = 8
+    terrain_obj.proportions = [0.0] * 26 + [1.0]
+    terrain_obj.cfg = A1MixedParkourCfg.terrain
+    terrain_obj.cfg.dynamic_obstacles = A1MixedParkourCfg.dynamic_obstacles
+
+    terrain = terrain_obj.make_terrain(choice=0.5, difficulty=0.5)
+
+    assert terrain.idx == DYNAMIC_MIXED_TILTED_PADS
+    assert terrain.dynamic_family == DYNAMIC_MIXED_TILTED_PADS
     assert terrain.goals.shape == (8, 2)

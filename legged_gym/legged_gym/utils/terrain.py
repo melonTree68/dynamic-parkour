@@ -47,6 +47,7 @@ DYNAMIC_TILTED_PADS = 23
 DYNAMIC_STEP = 24
 DYNAMIC_DEMO = 25
 DYNAMIC_MIXED_DEMO = 26
+DYNAMIC_MIXED_TILTED_PADS = 27
 DYNAMIC_OBSTACLES_PER_TILE = 6
 DYNAMIC_SLOTS_PER_OBSTACLE = 2
 
@@ -124,7 +125,7 @@ class Terrain:
 
         self.height_field_raw = np.zeros((self.tot_rows, self.tot_cols), dtype=np.int16)
         self.proportions.extend(
-            [self.proportions[-1]] * max(0, 25 - len(self.proportions))
+            [self.proportions[-1]] * max(0, 27 - len(self.proportions))
         )
         if cfg.curriculum:
             self.curiculum()
@@ -506,6 +507,15 @@ class Terrain:
                 self.cfg.y_range,
             )
             self.add_roughness(terrain)
+        elif choice < self.proportions[26]:
+            idx = DYNAMIC_MIXED_TILTED_PADS
+            mixed_tilted_pads_terrain(
+                terrain,
+                difficulty,
+                self.num_goals,
+                self.cfg.dynamic_obstacles,
+                self.cfg.y_range,
+            )
         # np.set_printoptions(precision=2)
         # print(np.array(self.proportions), choice)
         terrain.idx = idx
@@ -750,6 +760,11 @@ def dynamic_tilted_pads_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_r
     ] = 0
     goals[-1] = [min(x + 1.2, 17.0), mid_y]
     terrain.goals = goals
+
+
+def mixed_tilted_pads_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
+    dynamic_tilted_pads_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range)
+    terrain.dynamic_family = DYNAMIC_MIXED_TILTED_PADS
 
 
 def dynamic_step_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):

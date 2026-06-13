@@ -1,6 +1,6 @@
 ---
 name: a1-mixed-terrain
-description: Use when modifying, debugging, training, evaluating, or explaining the `a1_mixed` task, the `mixed_demo` terrain family, or the mixed static/dynamic terrain setting in extreme-parkour, including task registration, terrain dispatch, static-step replacement inside dynamic demo courses, play/evaluate defaults, and tests for mixed terrain metadata.
+description: Use when modifying, debugging, training, evaluating, or explaining the `a1_mixed` task, the `mixed_demo` or `mixed_tilted_pads` terrain family, or the mixed static/dynamic terrain setting in extreme-parkour, including task registration, terrain dispatch, static-step replacement inside dynamic demo courses, play/evaluate defaults, and tests for mixed terrain metadata.
 ---
 
 # A1 Mixed Terrain
@@ -31,23 +31,31 @@ Use this skill to work on the `a1_mixed` task and its `mixed_demo` terrain. The 
 ```python
 "dynamic_hurdle": 0.2
 "dynamic_gap": 0.2
-"dynamic_tilted_pads": 0.2
+"mixed_tilted_pads": 0.2
 "parkour_step": 0.2
 "mixed_demo": 0.2
 ```
 
-- `dynamic_step`, `dynamic_demo`, and unrelated terrain families have zero default weight in `a1_mixed`.
+- `dynamic_tilted_pads`, `dynamic_step`, `dynamic_demo`, and unrelated terrain families have zero default weight in `a1_mixed`.
 - `mixed_demo` is not a full `parkour_step_terrain` course. It is the `dynamic_demo` sequence with only the single dynamic step obstacle replaced by one static parkour-style heightfield step segment.
 - The static step is represented through the terrain heightfield and height scan observations, not through dynamic obstacle actor metadata.
+- `mixed_tilted_pads` intentionally looks and moves like `dynamic_tilted_pads`, including dynamic tilted-pad actors and height overlays, but its terrain family id suppresses dynamic obstacle state latent features for that terrain in `a1_mixed`.
+
+## Experimental Findings
+
+- Env latent augmentation on `dynamic_tilted_pads` was a negative improvement in both ROA-style recovery and teacher-student depth recovery experiments. Keep this result in mind when reporting per-family augmentation outcomes or deciding future recovery modes.
+- The resulting design choice is to keep `a1_dynamic` unchanged and route only `a1_mixed` through `mixed_tilted_pads`, preserving the same terrain/actor experience while zeroing tilted-pad dynamic state information.
 
 ## Terrain Metadata Rules
 
 - Use `DYNAMIC_MIXED_DEMO` so logs and tests distinguish mixed demo tiles from `DYNAMIC_DEMO`.
-- Add `mixed_demo` to `terrain_dict` and update `Terrain.make_terrain()` dispatch. The dictionary order and positional `self.proportions[index]` checks must stay aligned.
+- Use `DYNAMIC_MIXED_TILTED_PADS` so `a1_mixed` can distinguish latent-suppressed tilted-pad tiles from normal `DYNAMIC_TILTED_PADS` tiles.
+- Add `mixed_demo` and `mixed_tilted_pads` to `terrain_dict` and update `Terrain.make_terrain()` dispatch. The dictionary order and positional `self.proportions[index]` checks must stay aligned.
 - Keep the dynamic actor group corresponding to the replaced step inactive with `DYNAMIC_NONE` motion type and parked obstacle specs.
 - Keep moving hurdle, gap, and tilted-pad actor metadata consistent with `dynamic_demo`.
 - Preserve gap moving-goal mapping with `dynamic_goal_groups`; static step goals should not be mapped to a moving dynamic group.
 - Do not change the dynamic latent schema just to represent the static step. The selected latent group for an inactive/static step should produce invalid or zero dynamic features.
+- Do not clear tilted-pad actor metadata to remove latent information. `mixed_tilted_pads` should keep the same `DYNAMIC_TILTED_PADS` motion types/specs as the normal generator and suppress latent features by terrain family.
 
 ## Testing
 
@@ -55,6 +63,8 @@ Use this skill to work on the `a1_mixed` task and its `mixed_demo` terrain. The 
 - Verify `a1`, `a1_dynamic`, and `a1_mixed` default terrain distributions remain distinct.
 - Test `mixed_demo_terrain()` for eight goals, `DYNAMIC_MIXED_DEMO` family id, inactive step actor group, active hurdle/gap/tilted-pad groups, preserved gap goal mapping, and a nonzero static step in the heightfield.
 - Test `Terrain.make_terrain()` dispatch with only `mixed_demo` enabled.
+- Test `mixed_tilted_pads_terrain()` against `dynamic_tilted_pads_terrain()` with the same random seed; heightfield, goals, motion types, groups, goal mapping, and obstacle specs should match except for family id.
+- Test that `DynamicLeggedRobot._build_dynamic_env_latent_features()` returns zeros for `DYNAMIC_MIXED_TILTED_PADS` while keeping normal `DYNAMIC_TILTED_PADS` features nonzero.
 - Update `play.py` and `evaluate.py` smoke checks when their task-specific terrain defaults change.
 
 ## Cautions
@@ -62,3 +72,4 @@ Use this skill to work on the `a1_mixed` task and its `mixed_demo` terrain. The 
 - Do not modify stale copied files under `legged_gym/legged_gym/scripts/legged_gym/` unless runtime inspection proves they are active.
 - Do not create a new environment class for `a1_mixed` unless actor runtime requirements genuinely diverge from `DynamicLeggedRobot`.
 - Do not let `play.py` hardcoded overrides collapse `a1_mixed` back to the old `a1_dynamic` terrain set.
+- When reporting `a1_mixed` results, note that its tilted-pad terrain no longer exposes dynamic obstacle state in env latent despite retaining the same visible/moving obstacle course.

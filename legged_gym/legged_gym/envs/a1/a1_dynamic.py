@@ -9,6 +9,7 @@ from legged_gym.utils.math import quat_apply_yaw
 from legged_gym.utils.terrain import (
     DYNAMIC_GAP,
     DYNAMIC_HURDLE,
+    DYNAMIC_MIXED_TILTED_PADS,
     DYNAMIC_NONE,
     DYNAMIC_STEP,
     DYNAMIC_TILTED_PADS,
@@ -468,7 +469,8 @@ class DynamicLeggedRobot(LeggedRobot):
 
         motion_types = self.dynamic_motion_types[batch_ids, safe_group_ids]
         group_types = motion_types.amax(dim=-1)
-        valid = (group_ids >= 0) & (group_types != DYNAMIC_NONE)
+        suppress_latent = self.dynamic_family[:, None] == DYNAMIC_MIXED_TILTED_PADS
+        valid = (group_ids >= 0) & (group_types != DYNAMIC_NONE) & ~suppress_latent
         features[..., 0] = valid.float()
         features[..., 1] = ((group_types == DYNAMIC_HURDLE) & valid).float()
         features[..., 2] = ((group_types == DYNAMIC_GAP) & valid).float()

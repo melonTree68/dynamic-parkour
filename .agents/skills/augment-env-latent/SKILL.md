@@ -41,6 +41,10 @@ value_acceleration, sin_phase, cos_phase, amplitude, omega
 
 The labels are intentionally low-dimensional. This makes them easy to supervise and analyze, but they may be too small or too hand-designed to produce a large performance gain by themselves. Treat weak gains as an expected possibility rather than an implementation failure.
 
+### Tilted Pads Result
+
+Experiments found env latent augmentation on `dynamic_tilted_pads` to be a negative improvement for both ROA-style recovery and teacher-student depth recovery. The current project decision is to keep `a1_dynamic` unchanged, but make `a1_mixed` use `mixed_tilted_pads`: the terrain and moving tilted-pad actors match `dynamic_tilted_pads`, while `DynamicLeggedRobot` zeros the dynamic obstacle state features for tiles marked `DYNAMIC_MIXED_TILTED_PADS`. This is important context for future per-family analysis, reports, and recovery-mode changes.
+
 ## Implemented Recovery Paths
 
 - Imitation pretraining is now `imitation pretrain + env latent augmentation`: the student learns privileged-action imitation, history-action imitation, the explicit estimator, and masked ROA-style dynamic-state recovery for families configured as `"roa"`.
