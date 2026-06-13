@@ -24,8 +24,8 @@ Use this skill to understand and modify the `a1_dynamic` task: a dynamic-obstacl
    - `legged_gym/legged_gym/scripts/evaluate.py`
 3. Keep `a1_dynamic` separate from `a1`: prefer dynamic-specific config, metadata, actors, and registry entries over changing static-task semantics.
 4. When changing dynamic terrain families, update both the terrain proportions/config and the positional dispatcher in `Terrain.make_terrain()`.
-5. For training-pipeline work involving static A1 expert imitation before `a1_dynamic` base RL fine-tuning, read `skills/imitation-pretraining/SKILL.md`.
-6. For the next-stage environment-latent augmentation pipeline, read `skills/augment-env-latent/SKILL.md`.
+5. For training-pipeline work involving static A1 expert imitation before `a1_dynamic` base RL fine-tuning, read `.agents/skillsimitation-pretraining/SKILL.md`.
+6. For the next-stage environment-latent augmentation pipeline, read `.agents/skillsaugment-env-latent/SKILL.md`.
 
 ## Key Facts
 
@@ -37,7 +37,7 @@ Use this skill to understand and modify the `a1_dynamic` task: a dynamic-obstacl
 - Most parkour behavior comes from inherited `LeggedRobotCfg`, shared `LeggedRobot`, and `Terrain`.
 - `play.py` and `evaluate.py` override terrain distribution during testing, so task changes may need matching updates there.
 - `evaluate.py` accepts `--eval_terrain` with zero or more terrain names: omitted/empty uses task defaults (`a1`: `parkour`, `parkour_hurdle`, `parkour_step`, `parkour_gap`; `a1_dynamic`: `dynamic_hurdle`, `dynamic_gap`, `dynamic_tilted_pads`, `dynamic_step`, `dynamic_demo`), while named terrains are evaluated with equal proportions and all others set to zero.
-- `a1_dynamic` can be imitation-pretrained from a static A1 expert before the original base RL training stage; see `skills/imitation-pretraining/SKILL.md`.
+- `a1_dynamic` can be imitation-pretrained from a static A1 expert before the original base RL training stage; see `.agents/skillsimitation-pretraining/SKILL.md`.
 
 ## Cautions
 

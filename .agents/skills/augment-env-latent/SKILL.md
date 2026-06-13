@@ -20,8 +20,8 @@ This dynamic-state augmentation should extend these mechanisms instead of treati
 
 1. Read [references/original-pipeline-latent-recovery.md](references/original-pipeline-latent-recovery.md) before modifying model architecture, estimator targets, PPO losses, DAgger updates, or depth distillation.
 2. Read [references/proposal-midterm-notes.md](references/proposal-midterm-notes.md) for project motivation, midterm scope, and preliminary dynamic baselines.
-3. Read `skills/a1-dynamic-task-design/SKILL.md` before changing dynamic obstacle metadata, actor states, moving goals, dynamic height scans, or per-family terrain generation.
-4. Read `skills/imitation-pretraining/SKILL.md` before changing static-expert initialization or DAgger imitation pretraining.
+3. Read `.agents/skillsa1-dynamic-task-design/SKILL.md` before changing dynamic obstacle metadata, actor states, moving goals, dynamic height scans, or per-family terrain generation.
+4. Read `.agents/skillsimitation-pretraining/SKILL.md` before changing static-expert initialization or DAgger imitation pretraining.
 5. Define dynamic-obstacle-state labels from the scripted simulator state first, then decide where to inject or predict them.
 6. Evaluate variants by dynamic obstacle family and failure mode, not only aggregate reward or waypoint count.
 
@@ -57,5 +57,5 @@ The labels are intentionally low-dimensional. This makes them easy to supervise 
 
 ## Related Skills
 
-- `skills/a1-dynamic-task-design/SKILL.md`: dynamic task metadata, actor runtime, height scans, moving goals, and tuning map.
-- `skills/imitation-pretraining/SKILL.md`: static-expert DAgger pretraining before dynamic base RL fine-tuning.
+- `.agents/skillsa1-dynamic-task-design/SKILL.md`: dynamic task metadata, actor runtime, height scans, moving goals, and tuning map.
+- `.agents/skillsimitation-pretraining/SKILL.md`: static-expert DAgger pretraining before dynamic base RL fine-tuning.

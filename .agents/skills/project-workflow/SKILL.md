@@ -13,7 +13,7 @@ Use this skill to work inside the `extreme-parkour` repository without losing pr
 
 - Treat `plots/` as the home for plotting scripts and generated plots.
 - Treat `scripts/` as the record of commands or scripts used to run experiments; some files are notes or reminders.
-- Treat `skills/` as the project-local knowledge base. Keep durable workflows, architecture notes, debugging notes, and project decisions there.
+- Treat `.agents/skills` as the project-local knowledge base. Keep durable workflows, architecture notes, debugging notes, and project decisions there.
 
 ## Runtime Environment
 

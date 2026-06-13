@@ -1,24 +1,24 @@
 ---
 name: maintain-project-skills
-description: Maintain project-local skill documentation for extreme-parkour. Use after feature development, bug fixes, performance optimization, architecture changes, workflow discoveries, debugging discoveries, or any task that produces durable project knowledge that should live under `skills/` instead of scattered docs.
+description: Maintain project-local skill documentation for extreme-parkour. Use after feature development, bug fixes, performance optimization, architecture changes, workflow discoveries, debugging discoveries, or any task that produces durable project knowledge that should live under `.agents/skills` instead of scattered docs.
 ---
 
 # Maintain Project Skills
 
 ## Overview
 
-Use this skill to keep project knowledge centralized under `skills/`. Skills are the primary documentation repository for `extreme-parkour`, responsible for knowledge management and continuity.
+Use this skill to keep project knowledge centralized under `.agents/skills`. Skills are the primary documentation repository for `extreme-parkour`, responsible for knowledge management and continuity.
 
 ## Core Rule
 
-Archive valuable project knowledge in the most relevant project-local skill under `skills/`. Valuable knowledge includes workflows, solutions, architecture design, debugging experience, best practices, configuration parameters, and historical design decisions.
+Archive valuable project knowledge in the most relevant project-local skill under `.agents/skills`. Valuable knowledge includes workflows, solutions, architecture design, debugging experience, best practices, configuration parameters, and historical design decisions.
 
 ## Update Workflow
 
 1. Identify whether the completed task produced durable knowledge.
-2. Find the most relevant existing skill under `skills/`.
+2. Find the most relevant existing skill under `.agents/skills`.
 3. Append or revise that skill with the new knowledge.
-4. If no suitable skill exists, use the `skill-creator` workflow to create a new project-local skill under `skills/`.
+4. If no suitable skill exists, use the `skill-creator` workflow to create a new project-local skill under `.agents/skills`.
 5. Validate new or substantially changed skills with the skill validator.
 
 ## What To Record
