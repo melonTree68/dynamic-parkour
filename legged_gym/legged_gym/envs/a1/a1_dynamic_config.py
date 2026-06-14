@@ -7,10 +7,10 @@ class A1DynamicParkourCfg(A1ParkourCfg):
         num_future_groups = 2
         features_per_group = 15
         recovery_modes = {
-            "hurdle": "roa",
-            "gap": "roa",
-            "step": "roa",
-            "tilted_pad": "roa",
+            "hurdle": "roa",  # suppressed
+            "gap": "teacher_student",
+            "step": "roa",  # static, suppressed
+            "tilted_pad": "roa",  # suppressed
         }
         roa_loss_weight = 1.0
         teacher_student_loss_weight = 1.0
