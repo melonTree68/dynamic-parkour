@@ -295,7 +295,7 @@ def play(args):
     elif args.task == "a1_mixed":
         env_cfg.terrain.terrain_dict = {
             **{name: 0.0 for name in env_cfg.terrain.terrain_dict},
-            "dynamic_hurdle": 0.2,
+            "mixed_hurdle": 0.2,
             "dynamic_gap": 0.2,
             "mixed_tilted_pads": 0.2,
             "parkour_step": 0.2,
