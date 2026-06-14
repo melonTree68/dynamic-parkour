@@ -9,6 +9,7 @@ from legged_gym.utils.math import quat_apply_yaw
 from legged_gym.utils.terrain import (
     DYNAMIC_GAP,
     DYNAMIC_HURDLE,
+    DYNAMIC_MIXED_HURDLE,
     DYNAMIC_MIXED_TILTED_PADS,
     DYNAMIC_NONE,
     DYNAMIC_STEP,
@@ -108,6 +109,9 @@ class DynamicLeggedRobot(LeggedRobot):
         self.dynamic_goal_groups_table = torch.from_numpy(
             self.terrain.dynamic_goal_groups
         ).to(device=self.device, dtype=torch.long)
+        self.dynamic_latent_suppressed_table = torch.from_numpy(
+            self.terrain.dynamic_latent_suppressed
+        ).to(device=self.device, dtype=torch.bool)
 
         self.dynamic_family = torch.zeros(
             self.num_envs, device=self.device, dtype=torch.long
@@ -133,6 +137,12 @@ class DynamicLeggedRobot(LeggedRobot):
             -1,
             device=self.device,
             dtype=torch.long,
+        )
+        self.dynamic_latent_suppressed = torch.zeros(
+            self.num_envs,
+            self.num_dynamic_obstacles,
+            device=self.device,
+            dtype=torch.bool,
         )
         self.dynamic_base_goals = torch.zeros(
             self.num_envs, self.cfg.terrain.num_goals, 3, device=self.device
@@ -172,6 +182,9 @@ class DynamicLeggedRobot(LeggedRobot):
             rows, cols
         ]
         self.dynamic_goal_groups[env_ids] = self.dynamic_goal_groups_table[rows, cols]
+        self.dynamic_latent_suppressed[env_ids] = self.dynamic_latent_suppressed_table[
+            rows, cols
+        ]
         self.dynamic_base_goals[env_ids] = self.terrain_goals[rows, cols]
         self.dynamic_dims[env_ids] = self.dynamic_specs[env_ids, ..., 3:6]
 
@@ -469,7 +482,11 @@ class DynamicLeggedRobot(LeggedRobot):
 
         motion_types = self.dynamic_motion_types[batch_ids, safe_group_ids]
         group_types = motion_types.amax(dim=-1)
-        suppress_latent = self.dynamic_family[:, None] == DYNAMIC_MIXED_TILTED_PADS
+        suppress_family = (self.dynamic_family[:, None] == DYNAMIC_MIXED_TILTED_PADS) | (
+            self.dynamic_family[:, None] == DYNAMIC_MIXED_HURDLE
+        )
+        suppress_group = self.dynamic_latent_suppressed[batch_ids, safe_group_ids]
+        suppress_latent = suppress_family | suppress_group
         valid = (group_ids >= 0) & (group_types != DYNAMIC_NONE) & ~suppress_latent
         features[..., 0] = valid.float()
         features[..., 1] = ((group_types == DYNAMIC_HURDLE) & valid).float()

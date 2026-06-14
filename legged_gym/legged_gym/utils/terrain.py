@@ -48,6 +48,7 @@ DYNAMIC_STEP = 24
 DYNAMIC_DEMO = 25
 DYNAMIC_MIXED_DEMO = 26
 DYNAMIC_MIXED_TILTED_PADS = 27
+DYNAMIC_MIXED_HURDLE = 28
 DYNAMIC_OBSTACLES_PER_TILE = 6
 DYNAMIC_SLOTS_PER_OBSTACLE = 2
 
@@ -112,6 +113,9 @@ class Terrain:
         self.dynamic_goal_groups = np.full(
             (cfg.num_rows, cfg.num_cols, cfg.num_goals), -1, dtype=np.int16
         )
+        self.dynamic_latent_suppressed = np.zeros(
+            (cfg.num_rows, cfg.num_cols, DYNAMIC_OBSTACLES_PER_TILE), dtype=bool
+        )
         # self.env_slope_vec = np.zeros((cfg.num_rows, cfg.num_cols, 3))
         self.goals = np.zeros((cfg.num_rows, cfg.num_cols, cfg.num_goals, 3))
         self.num_goals = cfg.num_goals
@@ -125,7 +129,7 @@ class Terrain:
 
         self.height_field_raw = np.zeros((self.tot_rows, self.tot_cols), dtype=np.int16)
         self.proportions.extend(
-            [self.proportions[-1]] * max(0, 27 - len(self.proportions))
+            [self.proportions[-1]] * max(0, 28 - len(self.proportions))
         )
         if cfg.curriculum:
             self.curiculum()
@@ -516,6 +520,16 @@ class Terrain:
                 self.cfg.dynamic_obstacles,
                 self.cfg.y_range,
             )
+        elif choice < self.proportions[27]:
+            idx = DYNAMIC_MIXED_HURDLE
+            mixed_hurdle_terrain(
+                terrain,
+                difficulty,
+                self.num_goals,
+                self.cfg.dynamic_obstacles,
+                self.cfg.y_range,
+            )
+            self.add_roughness(terrain)
         # np.set_printoptions(precision=2)
         # print(np.array(self.proportions), choice)
         terrain.idx = idx
@@ -563,6 +577,7 @@ class Terrain:
             self.dynamic_motion_types[i, j] = terrain.dynamic_motion_types
             self.dynamic_motion_groups[i, j] = terrain.dynamic_motion_groups
             self.dynamic_goal_groups[i, j] = terrain.dynamic_goal_groups
+            self.dynamic_latent_suppressed[i, j] = terrain.dynamic_latent_suppressed
         # self.env_slope_vec[i, j] = terrain.slope_vector
 
 
@@ -582,6 +597,9 @@ def _init_dynamic_metadata(terrain, family, difficulty, num_goals):
         (DYNAMIC_OBSTACLES_PER_TILE, DYNAMIC_SLOTS_PER_OBSTACLE), -1, dtype=np.int16
     )
     terrain.dynamic_goal_groups = np.full(num_goals, -1, dtype=np.int16)
+    terrain.dynamic_latent_suppressed = np.zeros(
+        DYNAMIC_OBSTACLES_PER_TILE, dtype=bool
+    )
     return (
         np.zeros((num_goals, 2), dtype=np.float32),
         terrain.length * terrain.horizontal_scale / 2,
@@ -667,6 +685,12 @@ def dynamic_hurdle_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range)
         goals[i + 1] = [x - 0.45, y]
     goals[-1] = [min(x + 1.2, 17.0), mid_y]
     terrain.goals = goals
+
+
+def mixed_hurdle_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
+    dynamic_hurdle_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range)
+    terrain.dynamic_family = DYNAMIC_MIXED_HURDLE
+    terrain.dynamic_latent_suppressed[:] = True
 
 
 def dynamic_gap_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
@@ -956,6 +980,7 @@ def mixed_demo_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
         ],
     )
     goals[1] = [x - 0.45, y]
+    terrain.dynamic_latent_suppressed[0] = True
 
     step_len, step_width = dynamic_cfg.step_dims
     x += step_len + np.random.uniform(*demo_spacing[1])

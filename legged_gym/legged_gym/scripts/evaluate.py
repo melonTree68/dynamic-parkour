@@ -60,7 +60,7 @@ DEFAULT_EVAL_TERRAINS = {
         "dynamic_demo",
     ],
     "a1_mixed": [
-        "dynamic_hurdle",
+        "mixed_hurdle",
         "dynamic_gap",
         "mixed_tilted_pads",
         "parkour_step",

@@ -14,6 +14,7 @@ from legged_gym.utils import task_registry
 from legged_gym.utils.terrain import (
     DYNAMIC_DEMO,
     DYNAMIC_MIXED_DEMO,
+    DYNAMIC_MIXED_HURDLE,
     DYNAMIC_MIXED_TILTED_PADS,
     DYNAMIC_GAP,
     DYNAMIC_HURDLE,
@@ -24,6 +25,7 @@ from legged_gym.utils.terrain import (
     dynamic_gap_terrain,
     dynamic_hurdle_terrain,
     mixed_demo_terrain,
+    mixed_hurdle_terrain,
     mixed_tilted_pads_terrain,
     dynamic_step_terrain,
     dynamic_tilted_pads_terrain,
@@ -66,7 +68,7 @@ def test_dynamic_task_registration_preserves_a1_configuration():
     mixed_weights = [
         mixed_cfg.terrain.terrain_dict[name]
         for name in (
-            "dynamic_hurdle",
+            "mixed_hurdle",
             "dynamic_gap",
             "mixed_tilted_pads",
             "parkour_step",
@@ -77,6 +79,8 @@ def test_dynamic_task_registration_preserves_a1_configuration():
     assert mixed_weights == [0.2] * 5
     assert dynamic_cfg.terrain.terrain_dict["mixed_demo"] == 0.0
     assert dynamic_cfg.terrain.terrain_dict["mixed_tilted_pads"] == 0.0
+    assert dynamic_cfg.terrain.terrain_dict["mixed_hurdle"] == 0.0
+    assert mixed_cfg.terrain.terrain_dict["dynamic_hurdle"] == 0.0
     assert mixed_cfg.terrain.terrain_dict["dynamic_tilted_pads"] == 0.0
     assert mixed_cfg.terrain.terrain_dict["dynamic_step"] == 0.0
     assert mixed_cfg.terrain.terrain_dict["dynamic_demo"] == 0.0
@@ -100,6 +104,7 @@ def make_subterrain():
 def test_dynamic_generators_create_six_crossings_and_eight_goals():
     generators = [
         (dynamic_hurdle_terrain, DYNAMIC_HURDLE),
+        (mixed_hurdle_terrain, DYNAMIC_MIXED_HURDLE),
         (dynamic_gap_terrain, DYNAMIC_GAP),
         (dynamic_tilted_pads_terrain, DYNAMIC_TILTED_PADS),
         (mixed_tilted_pads_terrain, DYNAMIC_MIXED_TILTED_PADS),
@@ -171,6 +176,47 @@ def test_dynamic_layout_uses_a1_style_lateral_offsets_and_sampled_hurdle_heights
     assert len(np.unique(specs[:, 1])) > 1
 
 
+def test_mixed_hurdle_matches_dynamic_hurdle_except_family_and_latent_mask():
+    np.random.seed(31)
+    dynamic_terrain = make_subterrain()
+    dynamic_hurdle_terrain(
+        dynamic_terrain,
+        difficulty=0.5,
+        num_goals=8,
+        dynamic_cfg=DYNAMIC_CFG,
+        y_range=Y_RANGE,
+    )
+
+    np.random.seed(31)
+    mixed_terrain = make_subterrain()
+    mixed_hurdle_terrain(
+        mixed_terrain,
+        difficulty=0.5,
+        num_goals=8,
+        dynamic_cfg=DYNAMIC_CFG,
+        y_range=Y_RANGE,
+    )
+
+    assert dynamic_terrain.dynamic_family == DYNAMIC_HURDLE
+    assert mixed_terrain.dynamic_family == DYNAMIC_MIXED_HURDLE
+    assert np.array_equal(dynamic_terrain.height_field_raw, mixed_terrain.height_field_raw)
+    assert np.allclose(dynamic_terrain.goals, mixed_terrain.goals)
+    assert np.allclose(
+        dynamic_terrain.dynamic_obstacle_specs, mixed_terrain.dynamic_obstacle_specs
+    )
+    assert np.array_equal(
+        dynamic_terrain.dynamic_motion_types, mixed_terrain.dynamic_motion_types
+    )
+    assert np.array_equal(
+        dynamic_terrain.dynamic_motion_groups, mixed_terrain.dynamic_motion_groups
+    )
+    assert np.array_equal(
+        dynamic_terrain.dynamic_goal_groups, mixed_terrain.dynamic_goal_groups
+    )
+    assert not np.any(dynamic_terrain.dynamic_latent_suppressed)
+    assert np.all(mixed_terrain.dynamic_latent_suppressed)
+
+
 def test_dynamic_spacing_ranges_are_configurable_per_family():
     cases = [
         (dynamic_hurdle_terrain, DYNAMIC_CFG.hurdle_spacing, 0.0, 0.0),
@@ -217,6 +263,7 @@ def test_dynamic_demo_has_mixed_motion_sequence_and_gap_goal_mapping():
         >= 0.0
     )
     assert np.array_equal(terrain.dynamic_goal_groups[3:5], [2, 2])
+    assert not np.any(terrain.dynamic_latent_suppressed)
 
 
 def test_mixed_demo_replaces_dynamic_step_with_static_heightfield_step():
@@ -228,6 +275,8 @@ def test_mixed_demo_replaces_dynamic_step_with_static_heightfield_step():
     assert terrain.dynamic_family == DYNAMIC_MIXED_DEMO
     assert terrain.goals.shape == (8, 2)
     assert types[0, 0] == DYNAMIC_HURDLE
+    assert terrain.dynamic_latent_suppressed[0]
+    assert not np.any(terrain.dynamic_latent_suppressed[1:])
     assert np.all(types[1] == 0)
     assert np.array_equal(types[2], [DYNAMIC_GAP, DYNAMIC_GAP])
     assert types[3, 0] == DYNAMIC_TILTED_PADS
@@ -356,6 +405,7 @@ def test_mixed_tilted_pads_zero_dynamic_env_latent_features():
     )
     env.dynamic_motion_types = torch.full((2, 6, 2), DYNAMIC_NONE, dtype=torch.long)
     env.dynamic_motion_types[:, 0, 0] = DYNAMIC_TILTED_PADS
+    env.dynamic_latent_suppressed = torch.zeros(2, 6, dtype=torch.bool)
     env.obstacle_root_states = torch.zeros(2, 6, 2, 13)
     env.obstacle_root_states[:, 0, 0, :3] = torch.tensor([2.0, 0.25, 0.0])
     env.dynamic_dims = torch.zeros(2, 6, 2, 3)
@@ -380,6 +430,51 @@ def test_mixed_tilted_pads_zero_dynamic_env_latent_features():
     assert features[0, 0, 4] == 1.0
     assert torch.any(features[0, 0] != 0.0)
     assert torch.allclose(features[1, 0], torch.zeros(15))
+
+
+def test_mixed_hurdle_zeroes_dynamic_env_latent_features():
+    env = DynamicLeggedRobot.__new__(DynamicLeggedRobot)
+    env.num_envs = 3
+    env.device = torch.device("cpu")
+    env.num_dynamic_obstacles = 6
+    env.num_dynamic_slots = 2
+    env.cfg = types.SimpleNamespace(
+        dynamic_env_latent=types.SimpleNamespace(features_per_group=15),
+        dynamic_obstacles=types.SimpleNamespace(tilted_pad_min_roll_fraction=0.35),
+    )
+    env.dynamic_family = torch.tensor(
+        [DYNAMIC_HURDLE, DYNAMIC_MIXED_HURDLE, DYNAMIC_MIXED_DEMO], dtype=torch.long
+    )
+    env.dynamic_motion_types = torch.full((3, 6, 2), DYNAMIC_NONE, dtype=torch.long)
+    env.dynamic_motion_types[:, 0, 0] = DYNAMIC_HURDLE
+    env.dynamic_latent_suppressed = torch.zeros(3, 6, dtype=torch.bool)
+    env.dynamic_latent_suppressed[2, 0] = True
+    env.obstacle_root_states = torch.zeros(3, 6, 2, 13)
+    env.obstacle_root_states[:, 0, 0, :3] = torch.tensor([2.0, 0.25, 0.1])
+    env.dynamic_dims = torch.zeros(3, 6, 2, 3)
+    env.dynamic_dims[:, 0, 0] = torch.tensor(
+        [DYNAMIC_CFG.hurdle_thickness, DYNAMIC_CFG.hurdle_width, 0.45]
+    )
+    env.dynamic_specs = torch.zeros(3, 6, 2, 7)
+    env.root_states = torch.zeros(3, 13)
+    env.dynamic_offset = torch.zeros(3, 6)
+    env.dynamic_offset[:, 0] = 0.05
+    env.dynamic_velocity = torch.zeros(3, 6)
+    env.dynamic_velocity[:, 0] = 0.1
+    env.dynamic_amplitude = torch.zeros(3, 6)
+    env.dynamic_amplitude[:, 0] = 0.12
+    env.dynamic_period = torch.ones(3, 6) * 3.0
+    env.dynamic_phase = torch.zeros(3, 6)
+    env.dynamic_time = torch.zeros(3)
+
+    group_ids = torch.zeros(3, 1, dtype=torch.long)
+    features = DynamicLeggedRobot._build_dynamic_env_latent_features(env, group_ids)
+
+    assert features[0, 0, 0] == 1.0
+    assert features[0, 0, 1] == 1.0
+    assert torch.any(features[0, 0] != 0.0)
+    assert torch.allclose(features[1, 0], torch.zeros(15))
+    assert torch.allclose(features[2, 0], torch.zeros(15))
 
 
 def test_dynamic_tilted_pad_y_range_coeff_scales_lateral_offsets():
@@ -419,7 +514,7 @@ def test_make_terrain_dispatches_mixed_demo_family():
     terrain_obj.length_per_env_pixels = 360
     terrain_obj.width_per_env_pixels = 80
     terrain_obj.num_goals = 8
-    terrain_obj.proportions = [0.0] * 25 + [1.0, 1.0]
+    terrain_obj.proportions = [0.0] * 25 + [1.0, 1.0, 1.0]
     terrain_obj.cfg = A1MixedParkourCfg.terrain
     terrain_obj.cfg.dynamic_obstacles = A1MixedParkourCfg.dynamic_obstacles
 
@@ -435,7 +530,7 @@ def test_make_terrain_dispatches_mixed_tilted_pads_family():
     terrain_obj.length_per_env_pixels = 360
     terrain_obj.width_per_env_pixels = 80
     terrain_obj.num_goals = 8
-    terrain_obj.proportions = [0.0] * 26 + [1.0]
+    terrain_obj.proportions = [0.0] * 26 + [1.0, 1.0]
     terrain_obj.cfg = A1MixedParkourCfg.terrain
     terrain_obj.cfg.dynamic_obstacles = A1MixedParkourCfg.dynamic_obstacles
 
@@ -444,3 +539,20 @@ def test_make_terrain_dispatches_mixed_tilted_pads_family():
     assert terrain.idx == DYNAMIC_MIXED_TILTED_PADS
     assert terrain.dynamic_family == DYNAMIC_MIXED_TILTED_PADS
     assert terrain.goals.shape == (8, 2)
+
+
+def test_make_terrain_dispatches_mixed_hurdle_family():
+    terrain_obj = Terrain.__new__(Terrain)
+    terrain_obj.length_per_env_pixels = 360
+    terrain_obj.width_per_env_pixels = 80
+    terrain_obj.num_goals = 8
+    terrain_obj.proportions = [0.0] * 27 + [1.0]
+    terrain_obj.cfg = A1MixedParkourCfg.terrain
+    terrain_obj.cfg.dynamic_obstacles = A1MixedParkourCfg.dynamic_obstacles
+
+    terrain = terrain_obj.make_terrain(choice=0.5, difficulty=0.5)
+
+    assert terrain.idx == DYNAMIC_MIXED_HURDLE
+    assert terrain.dynamic_family == DYNAMIC_MIXED_HURDLE
+    assert terrain.goals.shape == (8, 2)
+    assert np.all(terrain.dynamic_latent_suppressed)
