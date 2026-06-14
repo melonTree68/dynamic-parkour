@@ -275,8 +275,9 @@ def test_mixed_demo_replaces_dynamic_step_with_static_heightfield_step():
     assert terrain.dynamic_family == DYNAMIC_MIXED_DEMO
     assert terrain.goals.shape == (8, 2)
     assert types[0, 0] == DYNAMIC_HURDLE
-    assert terrain.dynamic_latent_suppressed[0]
-    assert not np.any(terrain.dynamic_latent_suppressed[1:])
+    expected_suppressed = np.zeros(6, dtype=bool)
+    expected_suppressed[[0, 3, 4]] = True
+    assert np.array_equal(terrain.dynamic_latent_suppressed, expected_suppressed)
     assert np.all(types[1] == 0)
     assert np.array_equal(types[2], [DYNAMIC_GAP, DYNAMIC_GAP])
     assert types[3, 0] == DYNAMIC_TILTED_PADS
@@ -474,6 +475,64 @@ def test_mixed_hurdle_zeroes_dynamic_env_latent_features():
     assert features[0, 0, 1] == 1.0
     assert torch.any(features[0, 0] != 0.0)
     assert torch.allclose(features[1, 0], torch.zeros(15))
+    assert torch.allclose(features[2, 0], torch.zeros(15))
+
+
+def test_mixed_demo_suppresses_hurdle_and_tilted_pad_latent_groups():
+    env = DynamicLeggedRobot.__new__(DynamicLeggedRobot)
+    env.num_envs = 3
+    env.device = torch.device("cpu")
+    env.num_dynamic_obstacles = 6
+    env.num_dynamic_slots = 2
+    env.cfg = types.SimpleNamespace(
+        dynamic_env_latent=types.SimpleNamespace(features_per_group=15),
+        dynamic_obstacles=types.SimpleNamespace(tilted_pad_min_roll_fraction=0.35),
+    )
+    env.dynamic_family = torch.full((3,), DYNAMIC_MIXED_DEMO, dtype=torch.long)
+    env.dynamic_motion_types = torch.full((3, 6, 2), DYNAMIC_NONE, dtype=torch.long)
+    env.dynamic_motion_types[:, 0, 0] = DYNAMIC_HURDLE
+    env.dynamic_motion_types[:, 2, :] = DYNAMIC_GAP
+    env.dynamic_motion_types[:, 3, 0] = DYNAMIC_TILTED_PADS
+    env.dynamic_latent_suppressed = torch.zeros(3, 6, dtype=torch.bool)
+    env.dynamic_latent_suppressed[:, 0] = True
+    env.dynamic_latent_suppressed[:, 3] = True
+    env.obstacle_root_states = torch.zeros(3, 6, 2, 13)
+    env.obstacle_root_states[:, 0, 0, :3] = torch.tensor([2.0, 0.25, 0.1])
+    env.obstacle_root_states[:, 2, 0, :3] = torch.tensor([4.0, 0.25, 0.0])
+    env.obstacle_root_states[:, 2, 1, :3] = torch.tensor([5.0, 0.25, 0.0])
+    env.obstacle_root_states[:, 3, 0, :3] = torch.tensor([6.0, 0.25, 0.0])
+    env.dynamic_dims = torch.zeros(3, 6, 2, 3)
+    env.dynamic_dims[:, 0, 0] = torch.tensor(
+        [DYNAMIC_CFG.hurdle_thickness, DYNAMIC_CFG.hurdle_width, 0.45]
+    )
+    env.dynamic_dims[:, 2, :] = torch.tensor(DYNAMIC_CFG.gap_platform_dims)
+    env.dynamic_dims[:, 3, 0] = torch.tensor(DYNAMIC_CFG.tilted_pad_dims)
+    env.dynamic_specs = torch.zeros(3, 6, 2, 7)
+    env.dynamic_specs[:, 3, 0, 6] = 1.0
+    env.root_states = torch.zeros(3, 13)
+    env.dynamic_offset = torch.zeros(3, 6)
+    env.dynamic_offset[:, 0] = 0.05
+    env.dynamic_offset[:, 2] = 0.10
+    env.dynamic_offset[:, 3] = 0.20
+    env.dynamic_velocity = torch.zeros(3, 6)
+    env.dynamic_velocity[:, 0] = 0.1
+    env.dynamic_velocity[:, 2] = 0.1
+    env.dynamic_velocity[:, 3] = 0.1
+    env.dynamic_amplitude = torch.zeros(3, 6)
+    env.dynamic_amplitude[:, 0] = 0.12
+    env.dynamic_amplitude[:, 2] = 0.30
+    env.dynamic_amplitude[:, 3] = 0.30
+    env.dynamic_period = torch.ones(3, 6) * 3.0
+    env.dynamic_phase = torch.zeros(3, 6)
+    env.dynamic_time = torch.zeros(3)
+
+    group_ids = torch.tensor([[0], [2], [3]], dtype=torch.long)
+    features = DynamicLeggedRobot._build_dynamic_env_latent_features(env, group_ids)
+
+    assert torch.allclose(features[0, 0], torch.zeros(15))
+    assert features[1, 0, 0] == 1.0
+    assert features[1, 0, 2] == 1.0
+    assert torch.any(features[1, 0] != 0.0)
     assert torch.allclose(features[2, 0], torch.zeros(15))
 
 

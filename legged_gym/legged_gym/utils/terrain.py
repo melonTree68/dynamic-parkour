@@ -1053,6 +1053,7 @@ def mixed_demo_terrain(terrain, difficulty, num_goals, dynamic_cfg, y_range):
             DYNAMIC_TILTED_PADS,
             [x, y, -pad_thickness / 2, pad_len, pad_width, pad_thickness, roll_sign],
         )
+        terrain.dynamic_latent_suppressed[group] = True
         goals[goal_idx] = [x, y]
 
     goals[-1] = [min(x + 1.2, 17.0), mid_y]
