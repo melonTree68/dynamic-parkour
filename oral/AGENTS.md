@@ -19,7 +19,7 @@
 - Output PDF plots.
 - Do not use a single script to generate all plots, to avoid unnecessary replotting.
 - Put plotting scripts and generated plots under `oral/figures`.
-- CSV eval data are under `legged_gym/logs/proj_name/exptid`. Some evals were run on all terrain families, some separately on each terrain family. Some experiments are not yet finished; the corresponding CSV files will be provided in the future. An empty `legged_gym/logs/proj_name/exptid` folder indicates a started but unfinished experiment. In the slides, you may use these not-yet-available data to make tables or plots. In practice, you must use them, since some core experiments are not finished yet. Mark the corresponding locations in the `.tex` file with `# TODO(missing-data)`, and either comment them out or replace them with placeholders. For these tables or plots, ask me what the corresponding analysis should be; I will tell you, since I know the expected results. Then write the analysis and related content according to what I say.
+- CSV eval data are under `legged_gym/logs/proj_name/exptid`. Some evals were run on all terrain families, some separately on each terrain family. Some experiments are not yet finished; the corresponding CSV files will be provided in the future. An empty `legged_gym/logs/proj_name/exptid` folder indicates a started but unfinished experiment. In the slides, you may use these not-yet-available data to make tables or plots. In practice, you must use them, since some core experiments are not finished yet. Mark the corresponding locations in the `.tex` file with `% TODO(missing-data)`, and either comment them out or replace them with placeholders. For these tables or plots, ask me what the corresponding analysis should be; I will tell you, since I know the expected results. Then write the analysis and related content according to what I say.
 - You might reuse plotting scripts under `plots`; do not touch them.
 - Use the same color for the same training pipeline (imitation learning, ROA, teacher-student, hybrid, and hybrid with depth encoder loss) throughout the slides (and future project report).
 
@@ -29,7 +29,7 @@ In many situations, especially when illustrating training pipelines, AI-generate
 
 - Do not include large amounts of text directly in generated images. Generate the image first, then add text manually in post-processing. Use a sans-serif font for the text, preferably Computer Modern Sans Serif.
 - For each frame in a generated image, if the frame shows robot parkour, the terrain should contain only one obstacle type rather than a mixture of multiple obstacle types.
-- If you think AI-generated images are needed somewhere, do not generate them directly. Instead, place a placeholder at the corresponding location in the `.tex` file and add a comment marked with `# TODO(image-gen)`. In the comment, describe the image you intend to generate so that I can review it before actual generation.
+- If you think AI-generated images are needed somewhere, do not generate them directly. Instead, place a placeholder at the corresponding location in the `.tex` file and add a comment marked with `% TODO(image-gen)`. In the comment, describe the image you intend to generate so that I can review it before actual generation.
 
 ### Guidelines for specific plots
 
