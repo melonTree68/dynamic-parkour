@@ -2,11 +2,20 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from plot_utils import apply_style, aggregate_by_checkpoint, best_value, read_metrics, save_pdf, smooth
+from plot_utils import (
+    aggregate_by_checkpoint,
+    apply_style,
+    best_value,
+    keep_until,
+    read_metrics,
+    save_pdf,
+    smooth,
+)
 
 
 OUT = Path(__file__).with_name("distillation_waypoints.pdf")
 WINDOW = 5
+MAX_CHECKPOINT = 15000
 
 RUNS = {
     "original static distill": {
@@ -25,7 +34,7 @@ RUNS = {
 apply_style()
 plt.figure(figsize=(7.0, 3.6))
 for label, spec in RUNS.items():
-    df = aggregate_by_checkpoint(read_metrics(spec["distill"]))
+    df = keep_until(aggregate_by_checkpoint(read_metrics(spec["distill"])), MAX_CHECKPOINT)
     color = spec["color"]
     plt.plot(
         df["checkpoint"],

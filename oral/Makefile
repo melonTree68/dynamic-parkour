@@ -1,7 +1,7 @@
 PDFLATEX_FLAGS=-synctex=1 -interaction=nonstopmode -file-line-error
 PYTHON=conda run -n daily python
 
-FIGURES=figures/curriculum_tiles.png figures/static_dynamic_waypoints.pdf figures/distillation_waypoints.pdf figures/imitation_losses.pdf figures/recovery_modes_per_family.pdf figures/env_latent_distillation_ablation.pdf figures/depth_loss_base_comparison.pdf figures/depth_loss_distill_comparison.pdf
+FIGURES=figures/curriculum_tiles_labeled.png figures/static_dynamic_waypoints.pdf figures/distillation_waypoints.pdf figures/imitation_losses.pdf figures/recovery_modes_per_family.pdf figures/env_latent_distillation_ablation.pdf figures/depth_loss_base_comparison.pdf figures/depth_loss_distill_comparison.pdf
 
 all: main.pdf
 

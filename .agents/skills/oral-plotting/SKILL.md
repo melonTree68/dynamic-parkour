@@ -20,6 +20,7 @@ Use this skill for presentation/report plots. Keep reusable project-wide plot sc
 7. For single-pipeline evaluation plots, show error bars and smoothed curves.
 8. For camera-distillation training curves, draw a horizontal dashed line in the same color as each pipeline for the corresponding base-RL performance. Keep dashed lines out of the legend and explain them in the caption.
 9. When a requested comparison includes runs whose directories exist but have no CSV yet, plot only the existing curves and place a TeX `% TODO(missing-data): ...` beside the consuming slide. Do not add fake placeholder curves to the plotting script.
+10. For oral training-curve plots, base-RL line plots should show at most the first 20k iterations, and distillation line plots should show at most the first 15k iterations. If a run has fewer points, plot all available points.
 
 ## Color Mapping
 
@@ -31,6 +32,7 @@ Keep colors stable across slides and future reports:
 - ROA dynamic latent recovery: orange.
 - Teacher-student dynamic latent recovery: purple.
 - Hybrid mixed-terrain recovery: red or another distinct color not already used.
+- Hybrid with depth encoder loss: teal or another distinct color not already used.
 
 ## Data Interpretation
 

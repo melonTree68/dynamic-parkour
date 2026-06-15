@@ -31,6 +31,10 @@ def best_waypoint_before(relative_path, max_checkpoint=None):
     return float(row["num_waypoints_mean"])
 
 
+def keep_until(df, max_checkpoint):
+    return df[df["checkpoint"] <= max_checkpoint]
+
+
 def smooth(series, window):
     return series.rolling(window, center=True, min_periods=1).mean()
 

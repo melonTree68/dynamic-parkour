@@ -2,11 +2,12 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-from plot_utils import apply_style, read_metrics, save_pdf, smooth
+from plot_utils import apply_style, keep_until, read_metrics, save_pdf, smooth
 
 
 OUT = Path(__file__).with_name("static_dynamic_waypoints.pdf")
 WINDOW = 5
+MAX_CHECKPOINT = 20000
 
 RUNS = {
     "original static": {
@@ -23,7 +24,7 @@ RUNS = {
 apply_style()
 plt.figure(figsize=(7.0, 3.6))
 for label, spec in RUNS.items():
-    df = read_metrics(spec["path"])
+    df = keep_until(read_metrics(spec["path"]), MAX_CHECKPOINT)
     plt.plot(
         df["checkpoint"],
         smooth(df["num_waypoints_mean"], WINDOW),
