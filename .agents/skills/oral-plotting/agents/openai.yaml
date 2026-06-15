@@ -1,0 +1,4 @@
+interface:
+  display_name: "Oral Plotting"
+  short_description: "Generate plots for project slides and reports."
+  default_prompt: "Use this skill to create plots for the oral presentation."

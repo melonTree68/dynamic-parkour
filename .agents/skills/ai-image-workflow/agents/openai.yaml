@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Image Workflow"
+  short_description: "Plan AI-generated images for project slides."
+  default_prompt: "Use this skill to plan AI-generated slide images."

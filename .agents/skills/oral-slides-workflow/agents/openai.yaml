@@ -1,0 +1,4 @@
+interface:
+  display_name: "Oral Slides Workflow"
+  short_description: "Build oral presentation slides for the project."
+  default_prompt: "Use this skill to prepare the oral presentation slides."

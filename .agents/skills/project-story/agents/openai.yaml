@@ -1,0 +1,4 @@
+interface:
+  display_name: "Project Story"
+  short_description: "Project narrative for dynamic-obstacle parkour."
+  default_prompt: "Use this skill to explain the extreme-parkour project story."
