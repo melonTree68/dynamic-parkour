@@ -53,8 +53,6 @@ See project-local skills for details. Each item has a directly corresponding ski
 
 ## Slides structure
 
-curriculum learning
-
 - Intro
   - Problem motivation
   - Related work and background
