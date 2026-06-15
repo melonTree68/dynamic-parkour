@@ -6,14 +6,13 @@ from plot_utils import apply_style, read_metrics, save_pdf, smooth
 
 
 OUT = Path(__file__).with_name("imitation_losses.pdf")
-CSV = "legged_gym/logs/augment-latent-hybrid-mixed-terrain/imitate-base-15k/imitation_metrics.csv"
+CSV = "legged_gym/logs/imitation-pretrain-dynamic-terrain/imitate-base-15k-v2-91bf8ce/imitation_metrics.csv"
 WINDOW = 10
 
 METRICS = {
     "action loss": ("action_loss", "#2ca02c"),
     "history action": ("hist_action_loss", "#1f77b4"),
     "estimator": ("estimator_loss", "#9467bd"),
-    "dynamic ROA": ("dynamic_env_roa_loss", "#ff7f0e"),
 }
 
 
@@ -25,6 +24,6 @@ for label, (key, color) in METRICS.items():
 
 plt.xlabel("imitation iteration")
 plt.ylabel("loss")
-plt.ylim(0.0, 0.30)
+plt.ylim(0.0, 0.16)
 plt.legend(ncol=2, loc="upper right")
 save_pdf(OUT)

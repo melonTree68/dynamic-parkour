@@ -17,10 +17,6 @@ RUNS = {
         "path": "legged_gym/logs/original-pipeline-dynamic-terrain/base-v2-16f4736/metrics.csv",
         "color": "#666666",
     },
-    "imitation + dynamic": {
-        "path": "legged_gym/logs/imitation-pretrain-dynamic-terrain/resume-from-imitate-base-15k-100-v2-91bf8ce/metrics_all.csv",
-        "color": "#2ca02c",
-    },
 }
 
 

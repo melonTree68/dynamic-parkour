@@ -11,6 +11,26 @@ def read_metrics(relative_path):
     return pd.read_csv(ROOT / relative_path).sort_values("checkpoint")
 
 
+def aggregate_by_checkpoint(df):
+    if "eval_terrain" not in df.columns:
+        return df.sort_values("checkpoint")
+    return (
+        df.groupby("checkpoint", as_index=False)[
+            ["reward_mean", "num_waypoints_mean", "edge_violation_mean"]
+        ]
+        .mean()
+        .sort_values("checkpoint")
+    )
+
+
+def best_waypoint_before(relative_path, max_checkpoint=None):
+    df = aggregate_by_checkpoint(read_metrics(relative_path))
+    if max_checkpoint is not None:
+        df = df[df["checkpoint"] <= max_checkpoint]
+    row = df.loc[df["num_waypoints_mean"].idxmax()]
+    return float(row["num_waypoints_mean"])
+
+
 def smooth(series, window):
     return series.rolling(window, center=True, min_periods=1).mean()
 
@@ -39,9 +59,9 @@ def apply_style():
 
 
 def save_pdf(path):
-    ax = plt.gca()
-    ax.grid(True, axis="y", alpha=0.25)
-    ax.grid(False, axis="x")
+    for ax in plt.gcf().axes:
+        ax.grid(True, axis="y", alpha=0.25)
+        ax.grid(False, axis="x")
     plt.tight_layout()
     plt.savefig(path)
     plt.close()
