@@ -8,3 +8,5 @@ __pycache__
 *.synctex.gz
 *.toc
 *.pdf
+
+/reference/
