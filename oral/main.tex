@@ -7,9 +7,9 @@
 \usepackage{booktabs}
 \usepackage{amsmath}
 \usepackage{algorithm}
-\usepackage[noend]{algpseudocode}
+\usepackage{algpseudocode}
 
-\title{Dynamic-Obstacle Parkour with Quadruped Robots}
+\title{Dynamic-Obstacle Parkour with \\ Quadruped Robots}
 \author{Zhijie Chen \and Shiyi Xiao}
 \institute
 {
@@ -38,46 +38,61 @@
 \section{Motivation}
 
 \begin{frame}{Problem}
-    \begin{columns}[T,onlytextwidth]
-        \column{0.48\textwidth}
-        \textbf{Static parkour}
-        \begin{itemize}
-            \setlength{\itemsep}{0.45em}
-            \item Obstacles are fixed after terrain generation.
-            \item The policy can rely on local height scans and waypoint geometry.
-            \item The original two-stage pipeline works well on A1 parkour.
-        \end{itemize}
+    \textbf{Static parkour}
+    \begin{itemize}
+        \setlength{\itemsep}{0.35em}
+        \item Obstacles are fixed after terrain generation.
+        \item The policy can rely on local height scans and waypoint geometry.
+        \item The original two-stage pipeline works well on A1 parkour.
+    \end{itemize}
 
-        \column{0.48\textwidth}
-        \textbf{Dynamic parkour}
-        \begin{itemize}
-            \setlength{\itemsep}{0.45em}
-            \item Obstacle pose and support surfaces change over time.
-            \item Timing becomes part of foot placement and takeoff selection.
-            \item A deployable policy must infer time-varying obstacle state.
-        \end{itemize}
-    \end{columns}
+    \vspace{0.8em}
+    \textbf{Dynamic parkour}
+    \begin{itemize}
+        \setlength{\itemsep}{0.35em}
+        \item Obstacle pose and support surfaces change over time.
+        \item Timing becomes part of foot placement and takeoff selection.
+        \item A deployable policy must infer time-varying obstacle state.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Project Question}
+    \textbf{Can the original privileged-to-depth pipeline survive moving obstacles?}
+
+    \vspace{0.8em}
+    We keep the A1 parkour control stack, then change the terrain process and latent recovery path around it.
+
+    \vspace{0.8em}
+    \textbf{Contributions}
+    \begin{itemize}
+        \setlength{\itemsep}{0.35em}
+        \item Dynamic-obstacle task infrastructure
+        \item Static-expert DAgger pretraining
+        \item Dynamic environment latent augmentation
+        \item Mixed-terrain latent suppression
+        \item Depth encoder latent loss
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Related Work and Background}
     \begin{columns}[T,onlytextwidth]
-        \column{0.52\textwidth}
-        \textbf{Can the original privileged-to-depth pipeline survive moving obstacles?}
+        \column{0.48\textwidth}
+        \textbf{Privileged learning for locomotion}
+        \begin{itemize}
+            \setlength{\itemsep}{0.35em}
+            \item Train a teacher with simulator-only terrain and dynamics information.
+            \item Distill deployment behavior to history or depth observations.
+            \item Robustness depends on what latent state can be recovered.
+        \end{itemize}
 
-        \vspace{0.8em}
-        We study this by keeping the A1 parkour control stack, then changing the terrain process and latent recovery path around it.
-
-        \column{0.42\textwidth}
-        \begin{block}{Contributions}
-            \begin{itemize}
-                \setlength{\itemsep}{0.35em}
-                \item Dynamic-obstacle task infrastructure
-                \item Static-expert DAgger pretraining
-                \item Dynamic environment latent augmentation
-                \item Mixed-terrain latent suppression
-                \item Optional depth encoder latent loss
-            \end{itemize}
-        \end{block}
+        \column{0.47\textwidth}
+        \textbf{Gap in this project}
+        \begin{itemize}
+            \setlength{\itemsep}{0.35em}
+            \item Existing parkour benchmark focuses on static obstacle geometry.
+            \item Moving supports add timing and partial-observability failures.
+            \item We test whether latent recovery should be proprioceptive, visual, or family-specific.
+        \end{itemize}
     \end{columns}
 \end{frame}
 
@@ -85,54 +100,93 @@
 
 \begin{frame}{Original Training Pipeline}
     \begin{columns}[T,onlytextwidth]
-        \column{0.47\textwidth}
+        \column{0.52\textwidth}
+        \includegraphics[width=\linewidth,height=0.70\textheight,keepaspectratio]{reference/original_paper/method_compressed.pdf}
+
+        \column{0.43\textwidth}
+        \footnotesize
         \textbf{Phase 1: base RL}
         \begin{itemize}
-            \setlength{\itemsep}{0.35em}
-            \item PPO trains a privileged policy in simulation.
-            \item Actor input includes proprioception, height scan latent, explicit privileged state, and domain-randomization latent.
-            \item A history encoder learns to replace the privileged latent at deployment-like inference time.
+            \setlength{\itemsep}{0.25em}
+            \item PPO trains a privileged teacher in simulation.
+            \item Actor sees proprioception, scan latent, explicit privileged state, and privileged latent.
         \end{itemize}
 
-        \column{0.47\textwidth}
+        \vspace{0.5em}
         \textbf{Phase 2: camera distillation}
         \begin{itemize}
+            \setlength{\itemsep}{0.25em}
+            \item Depth encoder predicts scan latent and yaw correction.
+            \item Student actor imitates teacher action with depth-derived latent input.
+        \end{itemize}
+        \textbf{Original loss:} action imitation plus yaw prediction.
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Original Latent Recovery Modes}
+    \begin{columns}[T,onlytextwidth]
+        \column{0.48\textwidth}
+        \textbf{ROA-style history recovery}
+        \begin{itemize}
             \setlength{\itemsep}{0.35em}
-            \item A depth encoder predicts scan latent and yaw correction from depth and proprioception.
-            \item A student actor imitates the teacher action while running with depth-derived latent input.
-            \item The original active loss is action/yaw distillation; scan-latent matching is optional in our extension.
+            \item During base RL, the teacher uses privileged latent variables.
+            \item A history encoder learns to match the privileged latent from proprioceptive history.
+            \item This is suitable for state that can be inferred from recent robot motion.
+        \end{itemize}
+
+        \column{0.48\textwidth}
+        \textbf{Teacher-student depth recovery}
+        \begin{itemize}
+            \setlength{\itemsep}{0.35em}
+            \item During camera distillation, the teacher acts with terrain scan information.
+            \item The depth student predicts scan latent and yaw correction.
+            \item This is suitable for obstacle state that must be seen before contact.
         \end{itemize}
     \end{columns}
 \end{frame}
 
-\begin{frame}{Curriculum and Evaluation}
+\begin{frame}{Terrain Curriculum}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.68\linewidth]{curriculum_tiles.png}
+        \caption{Curriculum grid concept: columns select terrain families; rows increase difficulty.}
+    \end{figure}
+    \vspace{-0.4em}
     \begin{columns}[T,onlytextwidth]
-        \column{0.50\textwidth}
-        \textbf{Terrain curriculum}
-        \begin{itemize}
-            \setlength{\itemsep}{0.35em}
-            \item 10 difficulty rows by 40 terrain columns.
-            \item Each tile is 18 m by 4 m with eight navigation goals.
-            \item Reset curriculum moves robots to harder or easier rows based on progress.
-        \end{itemize}
-
-        \column{0.44\textwidth}
-        \textbf{Main metrics}
-        \begin{table}
-            \centering
-            \scriptsize
-            \begin{tabular}{ll}
-                \toprule
-                Metric     & Meaning         \\
-                \midrule
-                Waypoints  & Track progress  \\
-                Reward     & PPO proxy       \\
-                Length     & Survival time   \\
-                Edge viol. & Foot near edges \\
-                \bottomrule
-            \end{tabular}
-        \end{table}
+        \column{0.49\textwidth}
+        \scriptsize\textbf{Columns: terrain family} \hfill ramp \quad gap \quad hurdle
+        \column{0.49\textwidth}
+        \scriptsize\textbf{Rows: difficulty} \hfill easier $\rightarrow$ harder
     \end{columns}
+\end{frame}
+
+\begin{frame}{Static Terrain Difficulty}
+    \begin{itemize}
+        \setlength{\itemsep}{0.4em}
+        \item The simulator builds a 10-row by 40-column terrain grid; each tile is 18 m by 4 m with eight navigation goals.
+        \item Row index defines difficulty from 0 to 1; column index samples the terrain family from configured proportions.
+        \item Each terrain generator constructs a heightfield tile, places waypoint goals, adds roughness, and then the global heightfield is converted to a triangle mesh.
+        \item Difficulty changes obstacle geometry: ramp length/height, hurdle thickness/height, step height, gap width, lateral ranges, and platform spacing.
+        \item Actual obstacle values are sampled uniformly inside difficulty-dependent ranges, so policies see a distribution rather than one deterministic course per row.
+        \item Reset curriculum moves robots to harder or easier rows based on progress.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Evaluation Metrics}
+    \begin{table}
+        \centering
+        \caption{Metrics used to summarize training and rollout quality.}
+        \begin{tabular}{ll}
+            \toprule
+            Metric     & Meaning         \\
+            \midrule
+            Waypoints  & Track progress  \\
+            Reward     & PPO proxy       \\
+            Length     & Survival time   \\
+            Edge viol. & Foot near edges \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
 \end{frame}
 
 \section{Dynamic Task}
@@ -143,10 +197,9 @@
         \textbf{Design}
         \begin{itemize}
             \setlength{\itemsep}{0.35em}
-            \item Registered separately from \texttt{a1}.
-            \item Uses \texttt{DynamicLeggedRobot} with the A1 parkour config inheritance path.
             \item Keeps the eight-goal course interface and height-scan observation shape.
             \item Replaces static terrain families with dynamic obstacle families.
+            \item Adds a unified parameter-tuning interface for moving obstacle geometry and motion.
         \end{itemize}
 
         \column{0.45\textwidth}
@@ -163,56 +216,74 @@
 \end{frame}
 
 \begin{frame}{Runtime Infrastructure}
-    \begin{columns}[T,onlytextwidth]
-        \column{0.52\textwidth}
-        \textbf{Static terrain metadata}
-        \begin{itemize}
-            \setlength{\itemsep}{0.35em}
-            \item Terrain generation stores dynamic family, difficulty, obstacle specs, motion types, motion groups, and goal groups.
-            \item Six obstacle groups and two actor slots per group give twelve additional actors per environment.
-        \end{itemize}
+    \textbf{Isaac Gym actors}
+    \begin{itemize}
+        \setlength{\itemsep}{0.45em}
+        \item Dynamic obstacles are gravity-disabled box actors.
+        \item Scripted sinusoidal motion updates actor root states before physics.
+        \item Height scans analytically overlay current actor top surfaces.
+        \item Gap-related goals move with their support surfaces.
+    \end{itemize}
+\end{frame}
 
-        \column{0.42\textwidth}
-        \textbf{Isaac Gym actors}
-        \begin{itemize}
-            \setlength{\itemsep}{0.35em}
-            \item Dynamic obstacles are gravity-disabled box actors.
-            \item Scripted sinusoidal motion updates actor root states before physics.
-            \item Height scans analytically overlay current actor top surfaces.
-            \item Gap-related goals move with their support surfaces.
-        \end{itemize}
-    \end{columns}
+\begin{frame}{Dynamic Terrain Construction}
+    \begin{itemize}
+        \setlength{\itemsep}{0.38em}
+        \item Dynamic terrain keeps the static grid, tile size, waypoint count, roughness, and curriculum row logic.
+        \item The added part is obstacle metadata: family, current difficulty, actor dimensions, motion type, motion group, and which goals move with support surfaces.
+        \item Hurdles are moving bars; gaps are moving takeoff/landing platform pairs; tilted pads are rolling support boxes; steps are vertically moving blocks.
+        \item Pure gap tiles synchronize gap motion to avoid accidental extra openings; demo tiles combine hurdle, step, gap, and tilted-pad groups.
+        \item As in static terrain, actual per-obstacle values are sampled uniformly from ranges determined by difficulty.
+    \end{itemize}
+\end{frame}
+
+\begin{frame}{Dynamic Difficulty Parameters}
+    \scriptsize
+    \begin{table}
+        \centering
+        \caption{Dynamic-only parameters interpolated by difficulty before uniform sampling.}
+        \begin{tabular}{lll}
+            \toprule
+            Family & Geometry range & Motion range \\
+            \midrule
+            Hurdle & height $[0.10,0.15]\rightarrow[0.20,0.40]$ m & amplitude $0.02\rightarrow0.12$ m; period $5.0\rightarrow2.5$ s \\
+            Gap & size $0.10\rightarrow0.80$ m; moving platform pair & amplitude $0.05\rightarrow0.30$ m; period $4.0\rightarrow2.0$ s \\
+            Tilted pad & pad size fixed; lateral range expanded & roll amplitude $0.10\rightarrow0.45$ rad; period $4.5\rightarrow2.5$ s \\
+            Step & increment $[0.10,0.10]\rightarrow[0.40,0.50]$ m & amplitude $0.02\rightarrow0.12$ m; period $4.5\rightarrow2.5$ s \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+    \vspace{0.2em}
+    Amplitudes are sampled as a high fraction of the difficulty-scaled maximum; smaller periods mean faster obstacle motion.
 \end{frame}
 
 \begin{frame}{Original Pipeline Degrades}
-    \begin{figure}
-        \centering
-        \includegraphics[width=0.78\linewidth]{static_dynamic_waypoints.pdf}
-        \caption{Smoothed base-RL waypoints from available logs. Static terrain is near-complete; the original dynamic pipeline is much lower; imitation pretraining improves dynamic fine-tuning.}
-    \end{figure}
+    \begin{columns}[T,onlytextwidth]
+        \column{0.49\textwidth}
+        \begin{figure}
+            \centering
+            \includegraphics[width=\linewidth]{static_dynamic_waypoints.pdf}
+            \caption{Base-RL waypoints: the original static pipeline does not transfer cleanly to dynamic terrain.}
+        \end{figure}
+
+        \column{0.49\textwidth}
+        \begin{figure}
+            \centering
+            \includegraphics[width=\linewidth]{distillation_waypoints.pdf}
+            \caption{Camera distillation retains the same static-to-dynamic gap. Dashed lines mark base-RL references.}
+        \end{figure}
+    \end{columns}
 \end{frame}
 
 \begin{frame}{Failure Case Analysis}
-    \begin{columns}[T,onlytextwidth]
-        \column{0.48\textwidth}
-        \textbf{Failure categories}
-        \begin{itemize}
-            \setlength{\itemsep}{0.45em}
-            \item
-            \item
-            \item
-            \item
-        \end{itemize}
-
-        \column{0.46\textwidth}
-        \textbf{Demo clips}
-        \begin{itemize}
-            \setlength{\itemsep}{0.45em}
-            \item Leave this slide open for rollout videos.
-            \item Use one obstacle family per clip when possible.
-            \item Compare static, dynamic-original, and improved policy behavior.
-        \end{itemize}
-    \end{columns}
+    \textbf{Failure categories}
+    \begin{itemize}
+        \setlength{\itemsep}{0.8em}
+        \item
+        \item
+        \item
+        \item
+    \end{itemize}
 \end{frame}
 
 \section{Pipeline Improvements}
@@ -235,7 +306,6 @@
             \item Privileged actor action imitation
             \item History-branch action imitation
             \item Explicit privileged-state estimator loss
-            \item Dynamic latent ROA loss for configured families
         \end{itemize}
     \end{columns}
 \end{frame}
@@ -243,18 +313,19 @@
 \begin{frame}{DAgger Pseudocode}
     \small
     \begin{algorithmic}[1]
-        \Require static expert $\pi_E$, dynamic env, student $\pi_\theta$
-        \State Initialize teacher replay $B_E$ and student replay $B_S$
+        \Require static expert $\pi_E$, dynamic env
+        \State Initialize student $\pi_\theta$ from the expert policy weights
+        \State Initialize teacher replay buffer $B_E$ and student replay buffer $B_S$
         \For{$k=0,\ldots,K-1$}
-        \If{$k$ is the warmup iteration}
-        \State Roll out $\pi_E$ and store $(o,\pi_E(o))$ in $B_E$
+        \If{$k$ is the BC warmup iteration}
+        \State Roll out $\pi_E$ on dynamic terrain; store visited observations and expert labels in $B_E$
         \Else
-        \State Roll out $\pi_E$ into $B_E$
-        \State Roll out $\pi_\theta$ into $B_S$, labeling states with $\pi_E$
+        \State Roll out $\pi_E$ again to keep expert-state coverage in $B_E$
+        \State Roll out $\pi_\theta$ to collect student-induced states; relabel each state with $\pi_E$
+        \State Store the relabeled student-state samples in $B_S$
         \EndIf
         \State Sample a balanced minibatch from $B_E$ and $B_S$
-        \State Update $\pi_\theta$ with action, history-action, estimator, and dynamic-latent losses
-        \State Save a normal checkpoint for RL fine-tuning
+        \State Update $\pi_\theta$ with action, history-action, and estimator losses
         \EndFor
     \end{algorithmic}
 \end{frame}
@@ -262,40 +333,80 @@
 \begin{frame}{Imitation Losses}
     \begin{figure}
         \centering
-        \includegraphics[width=0.78\linewidth]{imitation_losses.pdf}
-        \caption{Hybrid mixed-terrain imitation losses. Iteration 0 is teacher-driven; later updates use balanced teacher and student replay.}
+        \includegraphics[width=0.72\linewidth]{imitation_losses.pdf}
+        \caption{Imitation-only losses on dynamic terrain. Iteration 0 is teacher-driven; later updates use balanced teacher and student replay.}
     \end{figure}
 \end{frame}
 
-\begin{frame}{Dynamic Environment Latent}
+\begin{frame}{Environment Latent Augmentation}
     \begin{columns}[T,onlytextwidth]
-        \column{0.51\textwidth}
-        \textbf{Privileged label}
+        \column{0.50\textwidth}
+        \textbf{What is augmented}
         \begin{itemize}
-            \setlength{\itemsep}{0.35em}
-            \item 2 upcoming obstacle groups.
-            \item 15 features per group.
-            \item Includes validity, family bits, relative position, obstacle value, velocity, acceleration, phase, amplitude, and frequency.
+            \setlength{\itemsep}{0.3em}
+            \item Add dynamic obstacle state to the environment latent.
+            \item Encode the next two obstacle groups.
+            \item Each group has 15 features.
+            \item Labels come from simulator state after scripted obstacle motion is updated.
         \end{itemize}
 
-        \column{0.43\textwidth}
-        \textbf{Recovery modes}
+        \column{0.46\textwidth}
+        \textbf{Why redundant}
         \begin{itemize}
-            \setlength{\itemsep}{0.35em}
-            \item \textbf{ROA}: history encoder predicts dynamic latent from proprioceptive history.
-            \item \textbf{Teacher-student}: depth encoder predicts dynamic latent during camera distillation.
-            \item \textbf{Hybrid}: choose recovery path per obstacle family.
+            \setlength{\itemsep}{0.3em}
+            \item The representation is not the minimal physical state.
+            \item It repeats type, geometry, phase, and derivative information.
+            \item Lower-dimensional labels were expected to be too weak for learning a useful recovery signal.
         \end{itemize}
     \end{columns}
 \end{frame}
 
-\begin{frame}{Recovery-Mode Ablation}
-    \begin{figure}
+\begin{frame}{Dynamic Obstacle State Features}
+    \scriptsize
+    \begin{table}
         \centering
-        \includegraphics[width=0.78\linewidth]{recovery_modes_per_family.pdf}
-        \caption{Available per-family base-RL evaluations for ROA and teacher-student recovery. These are preliminary mode-selection evidence, not final performance.}
-    \end{figure}
-    % TODO(missing-data): Ask the user for the final analysis comparing no augmentation, pure ROA, pure teacher-student, and hybrid recovery once complete metrics are available.
+        \caption{15 features per upcoming obstacle group.}
+        \begin{tabular}{ll}
+            \toprule
+            Category & Features \\
+            \midrule
+            Validity and type & valid, hurdle bit, gap bit, step bit, tilted-pad bit \\
+            Relative geometry & rel-$x$ slot 0, rel-$x$ slot 1, rel-$y$, primary value \\
+            Motion state & value velocity, value acceleration, $\sin(\text{phase})$, $\cos(\text{phase})$ \\
+            Motion parameters & amplitude, angular frequency \\
+            \bottomrule
+        \end{tabular}
+    \end{table}
+    \vspace{0.4em}
+    The primary value is family-specific: hurdle top height, effective gap width, step top height, or tilted-pad roll angle.
+\end{frame}
+
+\begin{frame}{Env Latent Ablation}
+    \begin{columns}[T,onlytextwidth]
+        \column{0.49\textwidth}
+        \begin{figure}
+            \centering
+            \includegraphics[width=\linewidth]{recovery_modes_per_family.pdf}
+            \caption{Base-RL best waypoint count before 20k iterations.}
+        \end{figure}
+
+        \column{0.49\textwidth}
+        \begin{figure}
+            \centering
+            \includegraphics[width=\linewidth]{env_latent_distillation_ablation.pdf}
+            \caption{Camera-distillation training. Dashed lines mark base-RL references.}
+        \end{figure}
+    \end{columns}
+\end{frame}
+
+\begin{frame}{Per-Family Interpretation}
+    \begin{itemize}
+        \setlength{\itemsep}{0.35em}
+        \item \textbf{Hurdle}: imitation pretraining is strongest; hurdle motion is small, while collision artifacts dominate the failure mode.
+        \item \textbf{Tilted pads}: augmentation hurts. The robot can aim for the rotation axis, so roll angle is less useful and becomes a training distraction.
+        \item \textbf{Gap}: teacher-student is strongest because takeoff timing and landing recovery require visual information.
+        \item \textbf{Step}: dynamic step is not learnable in current Isaac Gym physics; collisions with the step actor push the robot back strongly and prevent reward collection.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Mixed Terrain}
@@ -304,15 +415,16 @@
         \textbf{\texttt{a1\_mixed} terrain split}
         \begin{table}
             \centering
-            \begin{tabular}{lc}
+            \scriptsize
+            \begin{tabular}{ll}
                 \toprule
-                Family                       & Weight \\
+                Dynamic terrain & Mixed terrain \\
                 \midrule
-                \texttt{mixed\_hurdle}       & 0.2    \\
-                \texttt{dynamic\_gap}        & 0.2    \\
-                \texttt{mixed\_tilted\_pads} & 0.2    \\
-                \texttt{parkour\_step}       & 0.2    \\
-                \texttt{mixed\_demo}         & 0.2    \\
+                \texttt{dynamic\_hurdle}       & \texttt{mixed\_hurdle} \\
+                \texttt{dynamic\_gap}          & \texttt{dynamic\_gap} \\
+                \texttt{dynamic\_tilted\_pads} & \texttt{mixed\_tilted\_pads} \\
+                \texttt{dynamic\_step}         & \texttt{parkour\_step} \\
+                \texttt{dynamic\_demo}         & \texttt{mixed\_demo} \\
                 \bottomrule
             \end{tabular}
         \end{table}
@@ -323,7 +435,7 @@
             \setlength{\itemsep}{0.35em}
             \item Hurdle and tilted-pad dynamic latent recovery was not consistently beneficial.
             \item Mixed variants keep the same visible/moving actors but suppress dynamic state features.
-            \item Gap state remains available through teacher-student recovery.
+            \item Gap state remains routed through teacher-student recovery.
         \end{itemize}
     \end{columns}
 \end{frame}
@@ -331,58 +443,63 @@
 \begin{frame}{Depth Encoder Loss}
     \begin{columns}[T,onlytextwidth]
         \column{0.49\textwidth}
-        \textbf{Optional scan-latent matching}
+        \textbf{Scan-latent matching}
         \[
-            L_{\mathrm{scan}}
+            L_{\text{scan}}
             =
-            \left\|\operatorname{sg}(z_{\mathrm{scan}}) - z_{\mathrm{depth}}\right\|_2
+            \left\|\operatorname{sg}(z_{\text{scan}}) - z_{\text{depth}}\right\|_2
         \]
-        \vspace{-0.5em}
-        \begin{itemize}
-            \setlength{\itemsep}{0.35em}
-            \item Enabled by \texttt{--train\_depth\_encoder\_loss}.
-            \item Disabled by default for compatibility.
-        \end{itemize}
+        The depth encoder is trained to recover the teacher's terrain-scan latent, not only to match the teacher action.
 
         \column{0.45\textwidth}
-        \textbf{Integrated update}
+        \textbf{Distillation objective}
         \[
             L =
-            L_{\mathrm{action}}
-            + L_{\mathrm{yaw}}
-            + w_{\mathrm{dyn}}L_{\mathrm{dyn}}
-            + L_{\mathrm{scan}}
+            L_{\text{action}}
+            + L_{\text{yaw}}
+            + w_{\text{dyn}}L_{\text{dyn}}
+            + L_{\text{scan}}
         \]
-        \vspace{-0.5em}
-        The loss is added to the same depth actor optimizer step, avoiding a second backward pass through shared depth-encoder tensors.
+        This directly supervises the visual latent that the deployable student uses in place of scan observations.
     \end{columns}
 \end{frame}
 
-\begin{frame}{Camera Distillation}
-    \begin{figure}
-        \centering
-        \includegraphics[width=0.78\linewidth]{distillation_waypoints.pdf}
-        \caption{Available camera-distillation waypoints. Dashed same-color lines mark the corresponding base-RL performance before distillation.}
-    \end{figure}
+\begin{frame}{Depth-Loss Comparison}
+    \begin{columns}[T,onlytextwidth]
+        \column{0.49\textwidth}
+        \begin{figure}
+            \centering
+            \includegraphics[width=\linewidth]{depth_loss_base_comparison.pdf}
+            \caption{Base-RL curves for pure recovery modes.}
+        \end{figure}
+
+        \column{0.49\textwidth}
+        \begin{figure}
+            \centering
+            \includegraphics[width=\linewidth]{depth_loss_distill_comparison.pdf}
+            \caption{Distillation curves. Dashed lines mark base-RL references.}
+        \end{figure}
+    \end{columns}
+    % TODO(missing-data): Add hybrid and hybrid-with-depth-encoder-loss curves once the corresponding CSV files are ready.
 \end{frame}
 
-\begin{frame}{Final Comparison Plan}
+\begin{frame}{Final Comparison}
     \begin{table}
         \centering
-        \caption{Final comparison table template.}
-        \begin{tabular}{lcc}
+        \caption{Final comparison across deployment-stage policies.}
+        \scriptsize
+        \begin{tabular}{lll}
             \toprule
-            Policy                            & Dynamic eval & Static eval     \\
+            Pipeline & Terrain & Eval \\
             \midrule
-            Original static distill           & available    & target baseline \\
-            Original dynamic distill          & available    & --              \\
-            Hybrid mixed + depth encoder loss & pending      & pending         \\
+            Original static distill & Static & 0.936 waypoints, reward 18.26 \\
+            Original dynamic distill & Dynamic & 0.230 waypoints, reward 8.85 \\
+            Hybrid mixed + depth encoder loss & Dynamic & pending final run \\
+            Hybrid mixed + depth encoder loss & Static & pending static-eval run \\
             \bottomrule
         \end{tabular}
     \end{table}
-    % TODO(missing-data): Ask the user for the expected final dynamic/static analysis for:
-    % original-pipeline-static-terrain/distill-from-15k
-    % original-pipeline-dynamic-terrain/distill-from-15k-v2-16f4736
+    % TODO(missing-data): Fill the pending dynamic/static rows after these runs finish:
     % augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k-depth-enc-loss
     % augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k-depth-enc-loss-static-eval
 \end{frame}
@@ -390,32 +507,20 @@
 \section{Conclusion}
 
 \begin{frame}{Takeaways}
-    \begin{columns}[T,onlytextwidth]
-        \column{0.49\textwidth}
-        \textbf{What worked}
-        \begin{itemize}
-            \setlength{\itemsep}{0.35em}
-            \item Dynamic task infrastructure supports moving obstacles without changing the high-level A1 parkour interface.
-            \item Static-expert DAgger gives a better dynamic fine-tuning starting point.
-            \item Dynamic latent augmentation gives an explicit handle for testing what obstacle state is recoverable.
-        \end{itemize}
-
-        \column{0.45\textwidth}
-        \textbf{Final message}
-        \begin{itemize}
-            \setlength{\itemsep}{0.35em}
-            \item Dynamic obstacles expose a clear limitation of the original static-terrain pipeline.
-            \item Static-expert imitation gives dynamic RL a stronger initialization.
-            \item Dynamic state recovery should be family-aware: explicit where useful, implicit or suppressed where not.
-        \end{itemize}
-    \end{columns}
+    \textbf{What worked}
+    \begin{itemize}
+        \setlength{\itemsep}{0.45em}
+        \item Dynamic task infrastructure supports moving obstacles through a unified parameter-tuning interface.
+        \item Static-expert DAgger gives a better dynamic fine-tuning starting point.
+        \item Dynamic latent augmentation gives an explicit handle for testing what obstacle state is recoverable.
+        \item Adding depth encoder loss makes distillation converge faster and reach better performance.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Future Directions}
     \begin{itemize}
         \setlength{\itemsep}{0.55em}
-        \item Evaluate by obstacle family and failure mode rather than only aggregate reward.
-        \item Add targeted timing metrics such as takeoff error and landing stability.
+        \item Turn targeted timing signals, such as takeoff error and landing stability, into both metrics and losses.
         \item Stress-test depth recovery under partial observability, latency, and low frame rate.
         \item Use dynamic latent labels as an analysis tool even when the best policy uses implicit recovery.
     \end{itemize}
