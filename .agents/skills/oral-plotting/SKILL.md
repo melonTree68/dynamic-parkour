@@ -19,6 +19,7 @@ Use this skill for presentation/report plots. Keep reusable project-wide plot sc
 6. For multi-pipeline comparisons, show smoothed curves only; avoid raw curves and error bars.
 7. For single-pipeline evaluation plots, show error bars and smoothed curves.
 8. For camera-distillation training curves, draw a horizontal dashed line in the same color as each pipeline for the corresponding base-RL performance. Keep dashed lines out of the legend and explain them in the caption.
+9. When a requested comparison includes runs whose directories exist but have no CSV yet, plot only the existing curves and place a TeX `% TODO(missing-data): ...` beside the consuming slide. Do not add fake placeholder curves to the plotting script.
 
 ## Color Mapping
 
@@ -34,6 +35,8 @@ Keep colors stable across slides and future reports:
 ## Data Interpretation
 
 Prefer per-family evaluation for dynamic obstacle claims. Aggregate reward or waypoint count is useful for overview slides but can hide obstacle-specific failures.
+
+For environment-latent ablations, base-RL bar charts should use the best metric before the user-specified checkpoint cutoff when one is specified, rather than the best value over all training.
 
 ## Runtime Notes
 

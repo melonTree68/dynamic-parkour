@@ -17,7 +17,8 @@ Use this skill for the oral presentation deck in `oral/`. Always read `oral/AGEN
 4. Keep one Make target per plotting script so unrelated plots do not regenerate.
 5. Prefer horizontal Beamer columns over tall stacked lists.
 6. Put figure captions below figures and table captions above tables.
-7. Use `algorithm` and `algpseudocode` with the `noend` option for pseudocode.
+7. Use `algorithm` and `algpseudocode` for pseudocode.
+8. If the user gives a page-by-page revision list and asks to avoid page-number churn, maintain a checklist such as `oral/todo.md`, complete all source edits first, then compile once at the end.
 
 ## Slide Structure
 
@@ -26,6 +27,8 @@ Do not treat this skill as the source of truth for the slide outline. The slide 
 ## Missing Data
 
 When a slide needs not-yet-available results, include `% TODO(missing-data): ...` in the TeX source and either comment out the unavailable content or use an obvious placeholder. Ask the user for the expected analysis before writing conclusions about missing data.
+
+For oral slides, avoid visible wording such as "available logs" or "template" in captions and tables. Use polished presentation wording in visible slide text, and keep run-status details in TeX TODO comments.
 
 ## Image Placeholders
 

@@ -10,7 +10,7 @@
 - Place figure captions below the figure and table captions above the table.
 - Use ``...'' for quotation marks.
 - Prefer horizontally arranged columns over vertically stacked content, unless there is a clear layout-related reason.
-- Use package `algorithm` and `algpseudocode[noend]` for pseudocode.
+- Use package `algorithm` and `algpseudocode` for pseudocode.
 
 ## Plotting guidelines
 
