@@ -1,0 +1,38 @@
+统统改完再编译，以免我 refer to 的页码混乱/变更。如果我让你在一页里加入的东西太多，就拆成多页。把以下每个 item 作为一个 task item，持续维护并更新一个 task list (不用 plan mode)，逐个执行，以避免疏漏。我也复制了一份一样的在 [todo.md](/Users/zhijiechen/Documents/extreme-parkour/oral/todo.md) 供参考，你可以随意编辑这个文件。
+- 不要 revert 我已做的修改
+- 你没有按照 [AGENTS.md](oral/AGENTS.md) 的要求，在 section 1 加上 related work and background
+- page 3 改成上下排版排两个 itemize，而不是现在的左右排版
+- page 4 改成上下排版
+- page 6 写 original pipeline 的时候把 `oral/reference/original_paper/method_compressed.pdf` 放上去，这是原论文的 training pipeline diagram
+- page 6 phase 2 loss 只要写 original pipeline 里 loss 是什么就行，不用提 depth encoder loss (optional in our extension)
+- page 6 讲 original training pipeline 的时候显式提出有 ROA-style 和 teacher-student 两种 recovery mode，并分别介绍
+- page 7 的两个内容 (curriculum, eval) 拆开。eval 部分没问题。curriculum 部分保留现在内容的同时，添加对难度定义的阐述：terrain 如何构造（这个不要省篇幅）；哪些参数/参数范围随难度变化；实际参数是在一个区间内按均匀分布采样得到的。curriculum 部分再添一张 ai image 来 illustrate curriculum 的 tiles and rows x cols，两行三列，三列分别是 parkour ramp, parkour gap, parkour hurdle，第一行显得比第二行简单，并添加文字表明列是 terrain family，行是 difficulty。tile 在仿真器里长什么样子可以参考 `oral/reference/original_paper/terrain_compressed.jpg`，你调整一下视角。这次直接生成即可，不用先写注释
+- page 9 design 的前两个 item 不用写，因为太靠近实现细节了
+- page 10 第一个 itemize 不用放，太靠近实现细节了；第二个 itemize 写挺好的
+- page 10 和 page 11 中间加一些东西，说明 `a1_dynamic` 中 terrain 如何构造；哪些参数/参数范围随难度变化；实际参数是在一个区间内按均匀分布采样得到的。这里只提相比 `a1` 多出来的部分，和 static terrain 一样的部分就不用提
+- page 11 caption 的 "from available logs" 完全就不是 oral slides 里该出现的用词，把 caption 改了
+- page 11 的图不要出现 imitation pretrain，还没到它出场的时候；放两张图，一张 base RL training，一张 distillation，即两个 phase 各一张图
+- page 12 第二个 itemize 删掉
+- page 14 training target 的 "Dynamic latent ROA loss for configured families" 去掉 (page 15 对应部分也去掉)。你要注意逻辑顺序，比如 imitation pretraining 不能在 pipeline improvements section 前出现，env latent aug 不能在其对应的 slides 前出现
+- page 15 pseudocode 里：不要提 save ckpt；student pi_theta 不要说 require，说是最开始 init 的；三句 Roll out ... 可以写得稍微详细一点，现在过于短了
+- page 16 数据要用 `legged_gym/logs/imitation-pretrain-dynamic-terrain/imitate-base-15k-v2-91bf8ce` 下的表 (只画 imitation loss，不要画实际 performance)。还是逻辑顺序的问题，env latent aug 逻辑上在 imitation pretraining 后面，这时候还不能出现它
+- page 17 title 要叫 environment latent augmentation，这是个 augmentation。page 17 要大幅重写
+- page 17 要明确列出加了什么 dynamic obstacle state info 作为 env latent，这 15 维分别是什么；还要提到，加的 state info 是冗余的 (不是描述 state 所需的最少量参数)，原因是：否则维度太低效果好不了
+- page 17 recovery modes 那个 itemize 删掉，因为对 ROA 和 teacher-student 的具体介绍被前提到了 original training pipeline
+- page 18 要对比 pure ROA, pure teacher-student, no env latent aug (pure imitation pretraining) 这三者，而不是前两者。要放两张图，一张 base RL training，一张 distillation。base RL 用柱状图 (数据取前 20k iter 里的最大值，而不是全部里的最大值)，distillation 用训练曲线 (画三条线，以及 [AGENTS.md](/Users/zhijiechen/Documents/extreme-parkour/oral/AGENTS.md) 要求的虚线)
+- page 18 caption 的 available 不该在 slides 里出现
+- 对 pure ROA, pure teacher-student, no env latent aug 三者比较结果的分析我现在提供，它连接了 env latent aug 和 mixed terrain 这两部分：
+  - dynamic hurdle 的结果分析见 [$a1-mixed-terrain](/Users/zhijiechen/Documents/extreme-parkour/.agents/skills/a1-mixed-terrain/SKILL.md) line 48
+  - dynamic tilted pads 的结果见 [$a1-mixed-terrain](/Users/zhijiechen/Documents/extreme-parkour/.agents/skills/a1-mixed-terrain/SKILL.md) line 47，原因是 robot 只要学习往 tilted pad 的旋转轴上走就可以了，于是就无需考虑 tilted pad 的 roll angle，env latent aug 就没有用处，于是在训练中成为干扰的副作用
+  - dynamic gap 的结果是 teacher-student 优于另两个，原因是 gap 的难点 / failure mode 在于起跳时机和落地缓冲 (不要直接冲进下一个 gap 里)，这些信息都需要视觉输入，用 proprio recover info 的 ROA 于是表现不如 teacher-student
+  - dynamic step 完全学不会，因为 isaac gym 的物理机制不太合理，机器人撞到 step actor 后会被以较大的力弹回去，于是收不到 reward，于是无法学会
+- page 19 左表不要写 weight，写哪些 terrain 换掉了 (dynamic -> mixed, dynamic step -> parkour step) 即可，右边 reason 写的挺好的
+- page 20 公式里的文字都用 \text，不要用 \mathrm
+- page 20 的 itemize 删了，右边公式下面的文字也删了，太靠近实现细节；加一点说明，说这个 loss 是啥
+- page 21 图换掉，换成两张图，一张 base RL 折线图，一张 distillation 折线图，每张图里对比 pure ROA, pure teacher-student, hybrid, hybrid with depth enc loss (后两者数据还没出来)
+- page 22 加一列 Terrain，第一列改名 Pipeline，并相应修改表里的文字；后两列合并成一列 Eval；加一行 hybrid pipeline on static terrain
+- page 22 你倒是把能填的东西填上去啊，把 template 性质的文字什么的都改掉
+- page 24 "without changing the high-level A1 parkour interface" 的表意改成 with a unified parameter tuning interface，你自行措辞
+- page 24 what worked 加一条：加了 depth encoder loss 后 distillation 收敛更快，效果更好。虽然结果还没跑出来，但我预计是这样的，先这么写着（这句不要写到 slides 里）
+- page 24 final message 整个删了
+- page 25 "Evaluate by ..." 删了；"Add targeted timing ..." 强化成可以作为 metrics 也可以作为 loss；其他俩写的挺好的
