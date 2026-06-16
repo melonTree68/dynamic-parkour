@@ -10,6 +10,10 @@
 \usepackage{algpseudocode}
 
 \title{Dynamic-Obstacle Parkour with \\ Quadruped Robots}
+\subtitle{\normalfont\small
+    Extending {\normalfont \itshape Extreme Parkour with Legged Robots}\\
+    to Dynamic Obstacles with an Improved Training Pipeline
+}
 \author{Zhijie Chen \and Shiyi Xiao}
 \institute
 {
@@ -375,37 +379,63 @@
     The primary value is family-specific: hurdle top height, effective gap width, step top height, or tilted-pad roll angle.
 \end{frame}
 
+\iffalse
 \begin{frame}{Env Latent Ablation}
-    \begin{columns}[T,onlytextwidth]
-        \column{0.49\textwidth}
-        \begin{figure}
-            \centering
-            \includegraphics[width=\linewidth]{recovery_modes_per_family.pdf}
-            \caption{Base-RL best waypoint count.}
-        \end{figure}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.7\linewidth]{recovery_modes_per_family.pdf}
+        \caption{Base-RL best waypoint count.}
+    \end{figure}
+\end{frame}
+\fi
 
-        \column{0.49\textwidth}
-        \begin{figure}
-            \centering
-            \includegraphics[width=\linewidth]{env_latent_distillation_ablation.pdf}
-            \caption{Camera-distillation training. Dashed lines mark base-RL references.}
-        \end{figure}
-    \end{columns}
+\begin{frame}{Env Latent Ablation --- Hurdle}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.72\linewidth]{env_latent_distillation_hurdle.pdf}
+        \vspace{-1.2em}
+        \caption{Camera-distillation training. Dashed lines mark base-RL references.}
+    \end{figure}
+    \vspace{-1.0em}
+    \textbf{Hurdle}: imitation pretraining is strongest; hurdle motion is small, while collision artifacts dominate the failure mode.
 \end{frame}
 
-\begin{frame}{Per-Family Interpretation}
-    \begin{itemize}
-        \setlength{\itemsep}{0.35em}
-        \item \textbf{Hurdle}: imitation pretraining is strongest; hurdle motion is small, while collision artifacts dominate the failure mode.
-        \item \textbf{Tilted pads}: augmentation hurts. The robot can aim for the rotation axis, so roll angle is less useful and becomes a training distraction.
-        \item \textbf{Gap}: teacher-student is strongest because takeoff timing and landing recovery require visual information.
-        \item \textbf{Step}: dynamic step is not learnable in current Isaac Gym physics; collisions with the step actor push the robot back strongly and prevent reward collection.
-    \end{itemize}
+\begin{frame}{Env Latent Ablation --- Gap}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.72\linewidth]{env_latent_distillation_gap.pdf}
+        \vspace{-1.2em}
+        \caption{Camera-distillation training. Dashed lines mark base-RL references.}
+    \end{figure}
+    \vspace{-1.0em}
+    \textbf{Gap}: teacher-student is strongest because takeoff timing and landing recovery require visual information.
+\end{frame}
+
+\begin{frame}{Env Latent Ablation --- Tilted Pads}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.72\linewidth]{env_latent_distillation_tilted_pads.pdf}
+        \vspace{-1.2em}
+        \caption{Camera-distillation training. Dashed lines mark base-RL references.}
+    \end{figure}
+    \vspace{-1.0em}
+    \textbf{Tilted pads}: augmentation hurts. The robot can aim for the rotation axis, so roll angle is less useful and becomes a training distraction.
+\end{frame}
+
+\begin{frame}{Env Latent Ablation --- Gap}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.72\linewidth]{env_latent_distillation_step.pdf}
+        \vspace{-1.2em}
+        \caption{Camera-distillation training. Dashed lines mark base-RL references.}
+    \end{figure}
+    \vspace{-1.0em}
+    \textbf{Step}: dynamic step is not learnable in current Isaac Gym physics; collisions with the step actor push the robot back strongly and prevent reward collection.
 \end{frame}
 
 \begin{frame}{Mixed Terrain}
     \begin{columns}[T,onlytextwidth]
-        \column{0.50\textwidth}
+        \column{0.42\textwidth}
         \textbf{\texttt{a1\_mixed} terrain split}
         \begin{table}
             \centering
@@ -423,7 +453,7 @@
             \end{tabular}
         \end{table}
 
-        \column{0.44\textwidth}
+        \column{0.55\textwidth}
         \textbf{Reason}
         \begin{itemize}
             \setlength{\itemsep}{0.35em}
@@ -473,15 +503,15 @@
 \begin{frame}{Final Comparison}
     \begin{table}
         \centering
-        \caption{Final comparison across deployment-stage policies, truncated at 15k distillation iterations.}
+        \caption{Final comparison across deployment-stage policies.}
         \scriptsize
         \begin{tabular}{llcc}
             \toprule
             Pipeline & Terrain & Waypoints & Reward \\
             \midrule
-            Original static distill & Static & 0.936 & 18.26 \\
-            Original dynamic distill & Dynamic & 0.212 & 8.53 \\
-            Hybrid distill & Dynamic & 0.747 & 15.51 \\
+            Original static & Static & 0.936 & 18.26 \\
+            Original dynamic & Dynamic & 0.212 & 8.53 \\
+            Imitation pretrain + hybrid env latent aug & Dynamic & 0.747 & 15.51 \\
             % Hybrid distill & Static & pending static-eval run \\
             \bottomrule
         \end{tabular}

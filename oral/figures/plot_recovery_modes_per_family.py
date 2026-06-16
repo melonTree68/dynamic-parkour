@@ -29,7 +29,6 @@ FAMILIES = [
     ("dynamic_gap", "gap"),
     ("dynamic_tilted_pads", "tilted"),
     ("dynamic_step", "step"),
-    ("dynamic_demo", "demo"),
 ]
 
 

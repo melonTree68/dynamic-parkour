@@ -1,7 +1,7 @@
 PDFLATEX_FLAGS=-synctex=1 -interaction=nonstopmode -file-line-error
 PYTHON=conda run -n daily python
 
-FIGURES=figures/curriculum_tiles_labeled.png figures/static_dynamic_waypoints.pdf figures/distillation_waypoints.pdf figures/imitation_losses.pdf figures/recovery_modes_per_family.pdf figures/env_latent_distillation_ablation.pdf figures/recovery_mode_training_curves.pdf
+FIGURES=figures/curriculum_tiles_labeled.png figures/static_dynamic_waypoints.pdf figures/distillation_waypoints.pdf figures/imitation_losses.pdf figures/recovery_modes_per_family.pdf figures/env_latent_distillation_hurdle.pdf figures/env_latent_distillation_gap.pdf figures/env_latent_distillation_tilted_pads.pdf figures/env_latent_distillation_step.pdf figures/recovery_mode_training_curves.pdf
 
 all: main.pdf
 
@@ -23,6 +23,18 @@ figures/recovery_modes_per_family.pdf: figures/plot_recovery_modes_per_family.py
 
 figures/env_latent_distillation_ablation.pdf: figures/plot_env_latent_distillation_ablation.py figures/plot_utils.py
 	$(PYTHON) figures/plot_env_latent_distillation_ablation.py
+
+figures/env_latent_distillation_hurdle.pdf: figures/plot_env_latent_distillation_hurdle.py figures/plot_env_latent_distillation_family.py figures/plot_utils.py
+	$(PYTHON) figures/plot_env_latent_distillation_hurdle.py
+
+figures/env_latent_distillation_gap.pdf: figures/plot_env_latent_distillation_gap.py figures/plot_env_latent_distillation_family.py figures/plot_utils.py
+	$(PYTHON) figures/plot_env_latent_distillation_gap.py
+
+figures/env_latent_distillation_tilted_pads.pdf: figures/plot_env_latent_distillation_tilted_pads.py figures/plot_env_latent_distillation_family.py figures/plot_utils.py
+	$(PYTHON) figures/plot_env_latent_distillation_tilted_pads.py
+
+figures/env_latent_distillation_step.pdf: figures/plot_env_latent_distillation_step.py figures/plot_env_latent_distillation_family.py figures/plot_utils.py
+	$(PYTHON) figures/plot_env_latent_distillation_step.py
 
 figures/recovery_mode_training_curves.pdf: figures/plot_recovery_mode_training_curves.py figures/plot_utils.py
 	$(PYTHON) figures/plot_recovery_mode_training_curves.py
