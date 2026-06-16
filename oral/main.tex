@@ -275,14 +275,20 @@
 \end{frame}
 
 \begin{frame}{Failure Case Analysis}
-    % \textbf{Failure categories}
-    % \begin{itemize}
-    %     \setlength{\itemsep}{0.8em}
-    %     \item
-    %     \item
-    %     \item
-    %     \item
-    % \end{itemize}
+    \begin{itemize}
+        \setlength{\itemsep}{0.55em}
+        \item \textbf{Hurdle}
+        \begin{itemize}
+            \item When the front legs step onto a backward-moving hurdle, the hurdle hits the body and destabilizes the robot.
+            \item When the hurdle moves forward, the body is dragged forward and loses balance.
+        \end{itemize}
+        \item \textbf{Gap}
+        \begin{itemize}
+            \item When the gap moves away, the robot mistimes the landing and falls into the gap.
+            \item When the gap moves closer, the robot does not anticipate the continued motion and falls in before takeoff.
+        \end{itemize}
+        \item \textbf{Step}: the robot receives little reward and does not learn the emergent behavior of placing the front legs on the step.
+    \end{itemize}
 \end{frame}
 
 \section{Pipeline Improvements}
