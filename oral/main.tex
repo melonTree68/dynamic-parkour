@@ -59,7 +59,7 @@
 \begin{frame}{Project Question}
     \textbf{Can the original privileged-to-depth pipeline survive moving obstacles?}
 
-    \vspace{0.8em}
+    \vspace{0.4em}
     We keep the A1 parkour control stack, then change the terrain process and latent recovery path around it.
 
     \vspace{0.8em}
@@ -70,7 +70,7 @@
         \item Static-expert DAgger pretraining
         \item Dynamic environment latent augmentation
         \item Mixed-terrain latent suppression
-        \item Depth encoder latent loss
+        % \item Depth encoder latent loss
     \end{itemize}
 \end{frame}
 
@@ -119,7 +119,7 @@
             \item Depth encoder predicts scan latent and yaw correction.
             \item Student actor imitates teacher action with depth-derived latent input.
         \end{itemize}
-        \textbf{Original loss:} action imitation plus yaw prediction.
+        \textbf{Loss:} action imitation plus yaw prediction.
     \end{columns}
 \end{frame}
 
@@ -148,16 +148,10 @@
 \begin{frame}{Terrain Curriculum}
     \begin{figure}
         \centering
-        \includegraphics[width=0.68\linewidth]{curriculum_tiles.png}
+        \includegraphics[width=0.72\linewidth]{curriculum_tiles_labeled.png}
+        \vspace{-1.0em}
         \caption{Curriculum grid concept: columns select terrain families; rows increase difficulty.}
     \end{figure}
-    \vspace{-0.4em}
-    \begin{columns}[T,onlytextwidth]
-        \column{0.49\textwidth}
-        \scriptsize\textbf{Columns: terrain family} \hfill ramp \quad gap \quad hurdle
-        \column{0.49\textwidth}
-        \scriptsize\textbf{Rows: difficulty} \hfill easier $\rightarrow$ harder
-    \end{columns}
 \end{frame}
 
 \begin{frame}{Static Terrain Difficulty}
@@ -253,7 +247,6 @@
             \bottomrule
         \end{tabular}
     \end{table}
-    \vspace{0.2em}
     Amplitudes are sampled as a high fraction of the difficulty-scaled maximum; smaller periods mean faster obstacle motion.
 \end{frame}
 
@@ -276,14 +269,14 @@
 \end{frame}
 
 \begin{frame}{Failure Case Analysis}
-    \textbf{Failure categories}
-    \begin{itemize}
-        \setlength{\itemsep}{0.8em}
-        \item
-        \item
-        \item
-        \item
-    \end{itemize}
+    % \textbf{Failure categories}
+    % \begin{itemize}
+    %     \setlength{\itemsep}{0.8em}
+    %     \item
+    %     \item
+    %     \item
+    %     \item
+    % \end{itemize}
 \end{frame}
 
 \section{Pipeline Improvements}
@@ -314,51 +307,47 @@
     \small
     \begin{algorithmic}[1]
         \Require static expert $\pi_E$, dynamic env
-        \State Initialize student $\pi_\theta$ from the expert policy weights
+        \State Initialize student $\pi_\theta$
         \State Initialize teacher replay buffer $B_E$ and student replay buffer $B_S$
         \For{$k=0,\ldots,K-1$}
         \If{$k$ is the BC warmup iteration}
-        \State Roll out $\pi_E$ on dynamic terrain; store visited observations and expert labels in $B_E$
+        \State Roll out $\pi_E$ and store $(o,\pi_E(o))$ in $B_E$
         \Else
-        \State Roll out $\pi_E$ again to keep expert-state coverage in $B_E$
-        \State Roll out $\pi_\theta$ to collect student-induced states; relabel each state with $\pi_E$
-        \State Store the relabeled student-state samples in $B_S$
+        \State Roll out $\pi_E$ into $B_E$
+        \State Roll out $\pi_\theta$ into $B_S$, labeling states with $\pi_E$
         \EndIf
         \State Sample a balanced minibatch from $B_E$ and $B_S$
         \State Update $\pi_\theta$ with action, history-action, and estimator losses
         \EndFor
+        \State \Return $\pi_\theta$ for base RL fine-tuning
     \end{algorithmic}
 \end{frame}
 
-\begin{frame}{Imitation Losses}
-    \begin{figure}
-        \centering
-        \includegraphics[width=0.72\linewidth]{imitation_losses.pdf}
-        \caption{Imitation-only losses on dynamic terrain. Iteration 0 is teacher-driven; later updates use balanced teacher and student replay.}
-    \end{figure}
-\end{frame}
+% \begin{frame}{Imitation Losses}
+%     \begin{figure}
+%         \centering
+%         \includegraphics[width=0.72\linewidth]{imitation_losses.pdf}
+%         \vspace{-1.0em}
+%         \caption{Imitation losses on dynamic terrain. Iteration 0 is teacher-driven; later updates use balanced teacher and student replay.}
+%     \end{figure}
+% \end{frame}
 
 \begin{frame}{Environment Latent Augmentation}
-    \begin{columns}[T,onlytextwidth]
-        \column{0.50\textwidth}
-        \textbf{What is augmented}
-        \begin{itemize}
-            \setlength{\itemsep}{0.3em}
-            \item Add dynamic obstacle state to the environment latent.
-            \item Encode the next two obstacle groups.
-            \item Each group has 15 features.
-            \item Labels come from simulator state after scripted obstacle motion is updated.
-        \end{itemize}
-
-        \column{0.46\textwidth}
-        \textbf{Why redundant}
-        \begin{itemize}
-            \setlength{\itemsep}{0.3em}
-            \item The representation is not the minimal physical state.
-            \item It repeats type, geometry, phase, and derivative information.
-            \item Lower-dimensional labels were expected to be too weak for learning a useful recovery signal.
-        \end{itemize}
-    \end{columns}
+    \textbf{What is augmented}
+    \begin{itemize}
+        \setlength{\itemsep}{0.3em}
+        \item Add dynamic obstacle state to the environment latent.
+        \item Encode the next two obstacle groups.
+        \item Each group has 15 features.
+    \end{itemize}
+    \vspace{1.0em}
+    \textbf{Why redundant}
+    \begin{itemize}
+        \setlength{\itemsep}{0.3em}
+        \item The representation is not the minimal physical state.
+        \item It repeats type, geometry, phase, and derivative information.
+        \item Lower-dimensional labels were expected to be too weak for learning a useful recovery signal.
+    \end{itemize}
 \end{frame}
 
 \begin{frame}{Dynamic Obstacle State Features}
@@ -377,7 +366,6 @@
             \bottomrule
         \end{tabular}
     \end{table}
-    \vspace{0.4em}
     The primary value is family-specific: hurdle top height, effective gap width, step top height, or tilted-pad roll angle.
 \end{frame}
 
@@ -387,7 +375,7 @@
         \begin{figure}
             \centering
             \includegraphics[width=\linewidth]{recovery_modes_per_family.pdf}
-            \caption{Base-RL best waypoint count before 20k iterations.}
+            \caption{Base-RL best waypoint count.}
         \end{figure}
 
         \column{0.49\textwidth}
@@ -421,10 +409,10 @@
                 Dynamic terrain & Mixed terrain \\
                 \midrule
                 \texttt{dynamic\_hurdle}       & \texttt{mixed\_hurdle} \\
-                \texttt{dynamic\_gap}          & \texttt{dynamic\_gap} \\
+                \texttt{dynamic\_gap}          & {\color{gray!60}\texttt{dynamic\_gap}} \\
                 \texttt{dynamic\_tilted\_pads} & \texttt{mixed\_tilted\_pads} \\
                 \texttt{dynamic\_step}         & \texttt{parkour\_step} \\
-                \texttt{dynamic\_demo}         & \texttt{mixed\_demo} \\
+                \texttt{dynamic\_demo}         & {\color{gray!60}\texttt{mixed\_demo}} \\
                 \bottomrule
             \end{tabular}
         \end{table}
@@ -440,6 +428,8 @@
     \end{columns}
 \end{frame}
 
+% Depth encoder loss content is disabled for the current oral version.
+\iffalse
 \begin{frame}{Depth Encoder Loss}
     \begin{columns}[T,onlytextwidth]
         \column{0.49\textwidth}
@@ -447,7 +437,7 @@
         \[
             L_{\text{scan}}
             =
-            \left\|\operatorname{sg}(z_{\text{scan}}) - z_{\text{depth}}\right\|_2
+            \left\|z_{\text{scan}} - z_{\text{depth}}\right\|_2
         \]
         The depth encoder is trained to recover the teacher's terrain-scan latent, not only to match the teacher action.
 
@@ -458,7 +448,7 @@
             L_{\text{action}}
             + L_{\text{yaw}}
             + w_{\text{dyn}}L_{\text{dyn}}
-            + L_{\text{scan}}
+            \alert{+ L_{\text{scan}}}
         \]
         This directly supervises the visual latent that the deployable student uses in place of scan observations.
     \end{columns}
@@ -480,8 +470,9 @@
             \caption{Distillation curves. Dashed lines mark base-RL references.}
         \end{figure}
     \end{columns}
-    % TODO(missing-data): Add hybrid and hybrid-with-depth-encoder-loss curves once the corresponding CSV files are ready.
+    % TODO(missing-data): The hybrid-with-depth-encoder-loss CSV is available but still incomplete; update the plot after the full run finishes.
 \end{frame}
+\fi
 
 \begin{frame}{Final Comparison}
     \begin{table}
@@ -494,12 +485,13 @@
             \midrule
             Original static distill & Static & 0.936 waypoints, reward 18.26 \\
             Original dynamic distill & Dynamic & 0.230 waypoints, reward 8.85 \\
-            Hybrid mixed + depth encoder loss & Dynamic & pending final run \\
-            Hybrid mixed + depth encoder loss & Static & pending static-eval run \\
+            % Hybrid mixed + depth encoder loss & Dynamic & pending final run \\
+            % Hybrid mixed + depth encoder loss & Static & pending static-eval run \\
             \bottomrule
         \end{tabular}
     \end{table}
     % TODO(missing-data): Fill the pending dynamic/static rows after these runs finish:
+    % Disabled for current oral version:
     % augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k-depth-enc-loss
     % augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k-depth-enc-loss-static-eval
 \end{frame}
@@ -513,7 +505,7 @@
         \item Dynamic task infrastructure supports moving obstacles through a unified parameter-tuning interface.
         \item Static-expert DAgger gives a better dynamic fine-tuning starting point.
         \item Dynamic latent augmentation gives an explicit handle for testing what obstacle state is recoverable.
-        \item Adding depth encoder loss makes distillation converge faster and reach better performance.
+        % \item Adding depth encoder loss makes distillation converge faster and reach better performance.
     \end{itemize}
 \end{frame}
 
