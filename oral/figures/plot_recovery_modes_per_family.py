@@ -56,7 +56,7 @@ for idx, (label, spec) in enumerate(RUNS.items()):
     )
 
 plt.xticks(x, labels)
-plt.ylabel("best mean waypoints before 20k")
+plt.ylabel("best mean waypoints")
 plt.ylim(0.0, 1.05)
 plt.legend(loc="upper right", ncol=1)
 save_pdf(OUT)

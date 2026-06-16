@@ -40,6 +40,8 @@ Prefer per-family evaluation for dynamic obstacle claims. Aggregate reward or wa
 
 For environment-latent ablations, base-RL bar charts should use the best metric before the user-specified checkpoint cutoff when one is specified, rather than the best value over all training.
 
+For final recovery-mode comparisons, use per-family training curves rather than the old depth-loss comparison framing. Compare no environment latent augmentation, pure ROA, pure teacher-student, and hybrid recovery across hurdle, gap, and tilted-pads families; show base-RL curves capped at 20k iterations and distillation curves capped at 15k iterations.
+
 ## Runtime Notes
 
 - Plotting scripts should use normal scientific Python tools such as `matplotlib`, `pandas`, and NumPy.

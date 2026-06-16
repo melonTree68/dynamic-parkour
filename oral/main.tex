@@ -23,11 +23,11 @@
         \tableofcontents[currentsection]
     \end{frame}
 }
-\AtBeginSubsection{
-    \begin{frame}{Table of Contents}
-        \tableofcontents[currentsection,currentsubsection]
-    \end{frame}
-}
+% \AtBeginSubsection{
+%     \begin{frame}{Table of Contents}
+%         \tableofcontents[currentsection,currentsubsection]
+%     \end{frame}
+% }
 
 \begin{document}
 
@@ -69,7 +69,7 @@
         \item Dynamic-obstacle task infrastructure
         \item Static-expert DAgger pretraining
         \item Dynamic environment latent augmentation
-        \item Mixed-terrain latent suppression
+        % \item Mixed-terrain latent suppression
         % \item Depth encoder latent loss
     \end{itemize}
 \end{frame}
@@ -154,17 +154,17 @@
     \end{figure}
 \end{frame}
 
-\begin{frame}{Static Terrain Difficulty}
-    \begin{itemize}
-        \setlength{\itemsep}{0.4em}
-        \item The simulator builds a 10-row by 40-column terrain grid; each tile is 18 m by 4 m with eight navigation goals.
-        \item Row index defines difficulty from 0 to 1; column index samples the terrain family from configured proportions.
-        \item Each terrain generator constructs a heightfield tile, places waypoint goals, adds roughness, and then the global heightfield is converted to a triangle mesh.
-        \item Difficulty changes obstacle geometry: ramp length/height, hurdle thickness/height, step height, gap width, lateral ranges, and platform spacing.
-        \item Actual obstacle values are sampled uniformly inside difficulty-dependent ranges, so policies see a distribution rather than one deterministic course per row.
-        \item Reset curriculum moves robots to harder or easier rows based on progress.
-    \end{itemize}
-\end{frame}
+% \begin{frame}{Static Terrain Difficulty}
+%     \begin{itemize}
+%         \setlength{\itemsep}{0.4em}
+%         \item The simulator builds a 10-row by 40-column terrain grid; each tile is 18 m by 4 m with eight navigation goals.
+%         \item Row index defines difficulty from 0 to 1; column index samples the terrain family from configured proportions.
+%         \item Each terrain generator constructs a heightfield tile, places waypoint goals, adds roughness, and then the global heightfield is converted to a triangle mesh.
+%         \item Difficulty changes obstacle geometry: ramp length/height, hurdle thickness/height, step height, gap width, lateral ranges, and platform spacing.
+%         \item Actual obstacle values are sampled uniformly inside difficulty-dependent ranges, so policies see a distribution rather than one deterministic course per row.
+%         \item Reset curriculum moves robots to harder or easier rows based on progress.
+%     \end{itemize}
+% \end{frame}
 
 \begin{frame}{Evaluation Metrics}
     \begin{table}
@@ -215,11 +215,12 @@
         \setlength{\itemsep}{0.45em}
         \item Dynamic obstacles are gravity-disabled box actors.
         \item Scripted sinusoidal motion updates actor root states before physics.
-        \item Height scans analytically overlay current actor top surfaces.
+        % \item Height scans analytically overlay current actor top surfaces.
         \item Gap-related goals move with their support surfaces.
     \end{itemize}
 \end{frame}
 
+\iffalse
 \begin{frame}{Dynamic Terrain Construction}
     \begin{itemize}
         \setlength{\itemsep}{0.38em}
@@ -230,6 +231,7 @@
         \item As in static terrain, actual per-obstacle values are sampled uniformly from ranges determined by difficulty.
     \end{itemize}
 \end{frame}
+\fi
 
 \begin{frame}{Dynamic Difficulty Parameters}
     \scriptsize
@@ -241,13 +243,13 @@
             Family & Geometry range & Motion range \\
             \midrule
             Hurdle & height $[0.10,0.15]\rightarrow[0.20,0.40]$ m & amplitude $0.02\rightarrow0.12$ m; period $5.0\rightarrow2.5$ s \\
-            Gap & size $0.10\rightarrow0.80$ m; moving platform pair & amplitude $0.05\rightarrow0.30$ m; period $4.0\rightarrow2.0$ s \\
+            Gap & size $0.10\rightarrow0.80$ m & amplitude $0.05\rightarrow0.30$ m; period $4.0\rightarrow2.0$ s \\
             Tilted pad & pad size fixed; lateral range expanded & roll amplitude $0.10\rightarrow0.45$ rad; period $4.5\rightarrow2.5$ s \\
             Step & increment $[0.10,0.10]\rightarrow[0.40,0.50]$ m & amplitude $0.02\rightarrow0.12$ m; period $4.5\rightarrow2.5$ s \\
             \bottomrule
         \end{tabular}
     \end{table}
-    Amplitudes are sampled as a high fraction of the difficulty-scaled maximum; smaller periods mean faster obstacle motion.
+    % Amplitudes are sampled as a high fraction of the difficulty-scaled maximum; smaller periods mean faster obstacle motion.
 \end{frame}
 
 \begin{frame}{Original Pipeline Degrades}
@@ -280,6 +282,8 @@
 \end{frame}
 
 \section{Pipeline Improvements}
+
+\subsection{DAgger-Style Imitation Pretraining}
 
 \begin{frame}{DAgger-Style Imitation Pretraining}
     \begin{columns}[T,onlytextwidth]
@@ -332,22 +336,24 @@
 %     \end{figure}
 % \end{frame}
 
+\subsection{Environment Latent Augmentation}
+
 \begin{frame}{Environment Latent Augmentation}
     \textbf{What is augmented}
     \begin{itemize}
         \setlength{\itemsep}{0.3em}
         \item Add dynamic obstacle state to the environment latent.
         \item Encode the next two obstacle groups.
-        \item Each group has 15 features.
+        \item<2-> Each group has 15 features.
     \end{itemize}
     \vspace{1.0em}
-    \textbf{Why redundant}
-    \begin{itemize}
+    \uncover<3->{\textbf{Why redundant}} \qquad \uncover<2->{$x(t)=x_0+A_x\sin(\omega_x t+\varphi)$}
+    \uncover<3->{\begin{itemize}
         \setlength{\itemsep}{0.3em}
         \item The representation is not the minimal physical state.
         \item It repeats type, geometry, phase, and derivative information.
         \item Lower-dimensional labels were expected to be too weak for learning a useful recovery signal.
-    \end{itemize}
+    \end{itemize}}
 \end{frame}
 
 \begin{frame}{Dynamic Obstacle State Features}
@@ -453,47 +459,36 @@
         This directly supervises the visual latent that the deployable student uses in place of scan observations.
     \end{columns}
 \end{frame}
-
-\begin{frame}{Depth-Loss Comparison}
-    \begin{columns}[T,onlytextwidth]
-        \column{0.49\textwidth}
-        \begin{figure}
-            \centering
-            \includegraphics[width=\linewidth]{depth_loss_base_comparison.pdf}
-            \caption{Base-RL curves for pure recovery modes.}
-        \end{figure}
-
-        \column{0.49\textwidth}
-        \begin{figure}
-            \centering
-            \includegraphics[width=\linewidth]{depth_loss_distill_comparison.pdf}
-            \caption{Distillation curves. Dashed lines mark base-RL references.}
-        \end{figure}
-    \end{columns}
-    % TODO(missing-data): The hybrid-with-depth-encoder-loss CSV is available but still incomplete; update the plot after the full run finishes.
-\end{frame}
 \fi
+
+\begin{frame}{Recovery Mode Comparison}
+    \begin{figure}
+        \centering
+        \includegraphics[width=0.98\linewidth,height=0.68\textheight,keepaspectratio]{recovery_mode_training_curves.pdf}
+        \vspace{-0.5em}
+        \caption{Per-family waypoint curves for environment-latent recovery modes. Dashed lines mark base-RL references.}
+    \end{figure}
+\end{frame}
 
 \begin{frame}{Final Comparison}
     \begin{table}
         \centering
-        \caption{Final comparison across deployment-stage policies.}
+        \caption{Final comparison across deployment-stage policies, truncated at 15k distillation iterations.}
         \scriptsize
-        \begin{tabular}{lll}
+        \begin{tabular}{llcc}
             \toprule
-            Pipeline & Terrain & Eval \\
+            Pipeline & Terrain & Waypoints & Reward \\
             \midrule
-            Original static distill & Static & 0.936 waypoints, reward 18.26 \\
-            Original dynamic distill & Dynamic & 0.230 waypoints, reward 8.85 \\
-            % Hybrid mixed + depth encoder loss & Dynamic & pending final run \\
-            % Hybrid mixed + depth encoder loss & Static & pending static-eval run \\
+            Original static distill & Static & 0.936 & 18.26 \\
+            Original dynamic distill & Dynamic & 0.212 & 8.53 \\
+            Hybrid distill & Dynamic & 0.747 & 15.51 \\
+            % Hybrid distill & Static & pending static-eval run \\
             \bottomrule
         \end{tabular}
     \end{table}
-    % TODO(missing-data): Fill the pending dynamic/static rows after these runs finish:
-    % Disabled for current oral version:
-    % augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k-depth-enc-loss
-    % augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k-depth-enc-loss-static-eval
+    % TODO(missing-data): Third row uses:
+    % augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k
+    % [disabled] augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k-static-eval
 \end{frame}
 
 \section{Conclusion}
