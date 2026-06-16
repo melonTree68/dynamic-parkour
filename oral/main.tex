@@ -180,8 +180,8 @@
             \midrule
             Waypoints  & Track progress  \\
             Reward     & PPO proxy       \\
-            Length     & Survival time   \\
-            Edge viol. & Foot near edges \\
+            {\color{gray!60}Length}     & {\color{gray!60}Survival time}   \\
+            {\color{gray!60}Edge viol.} & {\color{gray!60}Foot near edges} \\
             \bottomrule
         \end{tabular}
     \end{table}
@@ -433,7 +433,9 @@
     \textbf{Step}: dynamic step is not learnable in current Isaac Gym physics; collisions with the step actor push the robot back strongly and prevent reward collection.
 \end{frame}
 
-\begin{frame}{Mixed Terrain}
+\subsection{Environent Latent Suppression}
+
+\begin{frame}{Env Latent Suppression and Mixed Terrain}
     \begin{columns}[T,onlytextwidth]
         \column{0.42\textwidth}
         \textbf{\texttt{a1\_mixed} terrain split}
@@ -447,7 +449,7 @@
                 \texttt{dynamic\_hurdle}       & \texttt{mixed\_hurdle} \\
                 \texttt{dynamic\_gap}          & {\color{gray!60}\texttt{dynamic\_gap}} \\
                 \texttt{dynamic\_tilted\_pads} & \texttt{mixed\_tilted\_pads} \\
-                \texttt{dynamic\_step}         & \texttt{parkour\_step} \\
+                \texttt{dynamic\_step}         & {\color{gray}\texttt{parkour\_step}} \\
                 \texttt{dynamic\_demo}         & {\color{gray!60}\texttt{mixed\_demo}} \\
                 \bottomrule
             \end{tabular}
