@@ -1,0 +1,14 @@
+.DS_Store
+__pycache__
+
+*.aux
+*.bbl
+*.blg
+*.log
+*.out
+*.synctex.gz
+*.toc
+*.pdf
+
+/reference/
+/demo/

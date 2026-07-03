@@ -1,5 +1,6 @@
 isaacgym*
 .ipynb_checkpoints/
+.DS_Store
 .vscode/
 *img
 
