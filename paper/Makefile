@@ -70,7 +70,11 @@ figures/training_pipeline_ai.png: figures/build_training_pipeline.py \
 	figures/training_pipeline_frames/teacher_frame.png
 	$(PYTHON) figures/build_training_pipeline.py
 
+format:
+	latexindent -w -s -l .latexindent.yaml paper_template.tex
+	rm -f paper_template.bak*
+
 clean:
 	rm -f paper_template.aux paper_template.bbl paper_template.blg paper_template.log paper_template.out paper_template.synctex.gz
 
-.PHONY: all clean
+.PHONY: all clean format

@@ -15,17 +15,17 @@
 \title{Dynamic-Obstacle Parkour with Quadruped Robots}
 
 \author{
-   \IEEEauthorblockN{Zhijie Chen}
-   \IEEEauthorblockA{Shanghai Jiao Tong University}
-   \and
-   \IEEEauthorblockN{Shiyi Xiao}
-   \IEEEauthorblockA{Shanghai Jiao Tong University}
+	\IEEEauthorblockN{Zhijie Chen}
+	\IEEEauthorblockA{Shanghai Jiao Tong University}
+	\and
+	\IEEEauthorblockN{Shiyi Xiao}
+	\IEEEauthorblockA{Shanghai Jiao Tong University}
 }
 
 \maketitle
 
 \begin{abstract}
-   We study dynamic-obstacle quadruped parkour in simulation, extending the static-obstacle setting of \emph{Extreme Parkour with Legged Robots} \citep{cheng2023parkour}. The baseline pipeline first trains a privileged parkour policy and then distills it to a deployable depth-based policy, but its benchmark is primarily built around static terrain geometry. We ask whether this privileged-to-depth framework can survive moving obstacles whose pose changes during execution. Our implementation adds an \texttt{a1\_dynamic} task with scripted Isaac Gym obstacle actors, dynamic height-scan overlays, moving goals, and a unified parameter interface for hurdles, gaps, tilted pads, steps, and mixed courses. On top of this infrastructure, we add static-expert DAgger-style imitation pretraining, dynamic environment latent augmentation, family-specific latent recovery modes, and an optional depth encoder scan-latent loss. The original training pipeline drops from \(0.936\) mean waypoints on static terrain to \(0.230\) on dynamic terrain. Our improved pipeline recovers to \(0.808\) mean waypoints on mixed terrain, while adding the depth encoder loss reaches \(0.748\) and does not provide a clear net benefit. Code is available at \url{https://github.com/melonTree68/dynamic-parkour}.
+	We study dynamic-obstacle quadruped parkour in simulation, extending the static-obstacle setting of \emph{Extreme Parkour with Legged Robots} \citep{cheng2023parkour}. The baseline pipeline first trains a privileged parkour policy and then distills it to a deployable depth-based policy, but its benchmark is primarily built around static terrain geometry. We ask whether this privileged-to-depth framework can survive moving obstacles whose pose changes during execution. Our implementation adds an \texttt{a1\_dynamic} task with scripted Isaac Gym obstacle actors, dynamic height-scan overlays, moving goals, and a unified parameter interface for hurdles, gaps, tilted pads, steps, and mixed courses. On top of this infrastructure, we add static-expert DAgger-style imitation pretraining, dynamic environment latent augmentation, family-specific latent recovery modes, and an optional depth encoder scan-latent loss. The original training pipeline drops from \(0.936\) mean waypoints on static terrain to \(0.230\) on dynamic terrain. Our improved pipeline recovers to \(0.808\) mean waypoints on mixed terrain, while adding the depth encoder loss reaches \(0.748\) and does not provide a clear net benefit. Code is available at \url{https://github.com/melonTree68/dynamic-parkour}.
 \end{abstract}
 
 \IEEEpeerreviewmaketitle
@@ -39,10 +39,10 @@ Our answer is yes, but with important qualifications. The original pipeline degr
 
 The project contributions are:
 \begin{itemize}
-   \item a dynamic-obstacle parkour infrastructure with scripted obstacle actors, moving goals, and dynamic height-scan overlays;
-   \item a DAgger-style imitation pretraining stage that bridges static expert behavior to dynamic-terrain fine-tuning;
-   \item a dynamic environment latent representation and recovery framework for family-specific ROA-style and teacher-student recovery;
-   \item an \texttt{a1\_mixed} task that keeps useful dynamic families while suppressing harmful dynamic latent labels;
+	\item a dynamic-obstacle parkour infrastructure with scripted obstacle actors, moving goals, and dynamic height-scan overlays;
+	\item a DAgger-style imitation pretraining stage that bridges static expert behavior to dynamic-terrain fine-tuning;
+	\item a dynamic environment latent representation and recovery framework for family-specific ROA-style and teacher-student recovery;
+	\item an \texttt{a1\_mixed} task that keeps useful dynamic families while suppressing harmful dynamic latent labels;
 \end{itemize}
 
 \section{Related Work and Background}
@@ -56,22 +56,22 @@ Dynamic-obstacle parkour also connects to latent recovery and imitation learning
 Figure~\ref{fig:pipeline} summarizes our improved training pipeline. The system starts from the original static parkour expert, transfers behavior into dynamic terrain through imitation pretraining, fine-tunes a privileged dynamic base policy, and finally distills to a depth-based student. Dynamic environment latent augmentation exposes obstacle state during training, while the final hybrid recovery design recovers useful gap state from depth and suppresses dynamic latent labels for families where explicit recovery is harmful.
 
 \begin{figure*}[htbp]
-   \centering
-   % TODO(image-gen): Pipeline figure uses verified demo frames, an AI-generated depth-view rollout matched to the demo viewpoint, the original-paper MLP glyph, and deterministic labels/arrows from figures/build_training_pipeline.py.
-   \includegraphics[width=0.98\textwidth]{training_pipeline_ai.png}
-   \vspace{-2.5em}
-   \caption{Training pipeline overview. A static parkour expert provides imitation targets for dynamic-terrain pretraining, the privileged dynamic policy is fine-tuned with obstacle-state latents, and the deployable depth student uses hybrid recovery to keep useful dynamic obstacle state while suppressing harmful latent labels.}
-   \label{fig:pipeline}
+	\centering
+	% TODO(image-gen): Pipeline figure uses verified demo frames, an AI-generated depth-view rollout matched to the demo viewpoint, the original-paper MLP glyph, and deterministic labels/arrows from figures/build_training_pipeline.py.
+	\includegraphics[width=0.98\textwidth]{training_pipeline_ai.png}
+	\vspace{-2.5em}
+	\caption{Training pipeline overview. A static parkour expert provides imitation targets for dynamic-terrain pretraining, the privileged dynamic policy is fine-tuned with obstacle-state latents, and the deployable depth student uses hybrid recovery to keep useful dynamic obstacle state while suppressing harmful latent labels.}
+	\label{fig:pipeline}
 \end{figure*}
 
 \subsection{Baseline Static Parkour Pipeline}
 The baseline task uses a curriculum grid of terrain tiles. Rows control difficulty, columns select terrain families, and each tile contains eight navigation goals. The policy is rewarded for progress toward the current goal and heading alignment, while penalties discourage collisions, unstable posture, torque spikes, and foot placement near terrain edges. Height scans provide privileged exteroception during base training, and depth images replace this scan information during camera distillation.
 
 \begin{figure}[htbp]
-   \centering
-   \includegraphics[width=\linewidth]{curriculum_tiles_labeled.png}
-   \caption{Curriculum structure: columns select obstacle families, while rows control difficulty.}
-   \label{fig:curriculum}
+	\centering
+	\includegraphics[width=\linewidth]{curriculum_tiles_labeled.png}
+	\caption{Curriculum structure: columns select obstacle families, while rows control difficulty.}
+	\label{fig:curriculum}
 \end{figure}
 
 The baseline training stack has two latent recovery paths. First, during base reinforcement learning, a history encoder learns to match privileged latent variables from recent proprioceptive observations. Second, during camera distillation, a depth encoder predicts scan-derived latent information and yaw correction so that the deployment policy can act without privileged terrain scans. Dynamic parkour stresses both mechanisms because obstacle state may be visible before contact, only inferable after contact, or not useful at all.
@@ -93,26 +93,26 @@ The dynamic task exposes a unified configuration interface for the main obstacle
 Training dynamic parkour from scratch is difficult because early failures prevent the policy from reaching informative states. We therefore add an imitation pretraining stage before dynamic base reinforcement learning. The expert is a static-terrain A1 policy.
 
 \begin{algorithm}[htb]
-   \small
-   \caption{DAgger-style imitation pretraining}
-   \label{alg:dagger}
-   \begin{algorithmic}[1]
-      \Require static expert \(\pi_E\), dynamic environment
-      \State Initialize student \(\pi_\theta\)
-      \State Initialize teacher replay buffer \(B_E\) and student replay buffer \(B_S\)
-      \For{\(k=0,\dots,K-1\)}
-      \If{\(k\) is the BC warmup iteration}
-      \State Roll out \(\pi_E\) and store \((o,\pi_E(o))\) in \(B_E\)
-      \Else
-      \State Roll out \(\pi_E\) and append labeled states to \(B_E\)
-      \State Roll out \(\pi_\theta\) and label visited states with \(\pi_E\)
-      \State Append student-induced samples to \(B_S\)
-      \EndIf
-      \State Sample a balanced minibatch from \(B_E\) and \(B_S\)
-      \State Update \(\pi_\theta\) with action, history-action, and estimator losses
-      \EndFor
-      \State \Return \(\pi_\theta\) for base RL fine-tuning
-   \end{algorithmic}
+	\small
+	\caption{DAgger-style imitation pretraining}
+	\label{alg:dagger}
+	\begin{algorithmic}[1]
+		\Require static expert \(\pi_E\), dynamic environment
+		\State Initialize student \(\pi_\theta\)
+		\State Initialize teacher replay buffer \(B_E\) and student replay buffer \(B_S\)
+		\For{\(k=0,\dots,K-1\)}
+		\If{\(k\) is the BC warmup iteration}
+		\State Roll out \(\pi_E\) and store \((o,\pi_E(o))\) in \(B_E\)
+		\Else
+		\State Roll out \(\pi_E\) and append labeled states to \(B_E\)
+		\State Roll out \(\pi_\theta\) and label visited states with \(\pi_E\)
+		\State Append student-induced samples to \(B_S\)
+		\EndIf
+		\State Sample a balanced minibatch from \(B_E\) and \(B_S\)
+		\State Update \(\pi_\theta\) with action, history-action, and estimator losses
+		\EndFor
+		\State \Return \(\pi_\theta\) for base RL fine-tuning
+	\end{algorithmic}
 \end{algorithm}
 
 The imitation objective trains both the privileged actor path and the history-encoding actor path. It also trains the estimator used by the original pipeline, so the resulting checkpoint can be consumed by the normal base-RL runner. When dynamic environment latent augmentation is enabled, imitation also supervises the masked dynamic-state recovery losses for families assigned to ROA-style recovery.
@@ -122,22 +122,22 @@ The core augmentation is a low-dimensional dynamic obstacle state appended after
 
 Each group contains validity and type bits, relative geometry, motion state, and motion parameters. Table~\ref{tab:dynamic_latent_features} summarizes the per-group feature layout.
 \begin{table*}[htb]
-   \caption{Per-group dynamic latent features.}
-   \label{tab:dynamic_latent_features}
-   \centering
-   \begin{tabular}{lll}
-      \toprule
-      Category & Variable & Meaning \\
-      \midrule
-      Validity & \(\mathbf 1_{\mathrm{valid}}\) & whether this upcoming obstacle group is valid \\
-      Type bits & \(\mathbf 1_{\mathrm{hurdle}}, \mathbf 1_{\mathrm{gap}}, \mathbf 1_{\mathrm{step}}, \mathbf 1_{\mathrm{pad}}\) & one-hot indicators for hurdle, gap, step, and tilted pad \\
-      Relative geometry & \(x_0, x_1\) & robot-relative forward positions of slot 0 and slot 1 \\
-       & \(y\) & robot-relative lateral offset of the obstacle group \\
-      Primary state & \(v_{\mathrm{primary}}, \dot{v}_{\mathrm{primary}}, \ddot{v}_{\mathrm{primary}}\) & family-specific scalar state and its time derivatives \\
-      Motion phase & \(\sin\varphi, \cos\varphi\) & current phase of the scripted motion \\
-      Motion parameters & \(A, \omega\) & sampled amplitude and angular frequency \\
-      \bottomrule
-   \end{tabular}
+	\caption{Per-group dynamic latent features.}
+	\label{tab:dynamic_latent_features}
+	\centering
+	\begin{tabular}{lll}
+		\toprule
+		Category & Variable & Meaning \\
+		\midrule
+		Validity & \(\mathbf 1_{\mathrm{valid}}\) & whether this upcoming obstacle group is valid \\
+		Type bits & \(\mathbf 1_{\mathrm{hurdle}}, \mathbf 1_{\mathrm{gap}}, \mathbf 1_{\mathrm{step}}, \mathbf 1_{\mathrm{pad}}\) & one-hot indicators for hurdle, gap, step, and tilted pad \\
+		Relative geometry & \(x_0, x_1\) & robot-relative forward positions of slot 0 and slot 1 \\
+		& \(y\) & robot-relative lateral offset of the obstacle group \\
+		Primary state & \(v_{\mathrm{primary}}, \dot{v}_{\mathrm{primary}}, \ddot{v}_{\mathrm{primary}}\) & family-specific scalar state and its time derivatives \\
+		Motion phase & \(\sin\varphi, \cos\varphi\) & current phase of the scripted motion \\
+		Motion parameters & \(A, \omega\) & sampled amplitude and angular frequency \\
+		\bottomrule
+	\end{tabular}
 \end{table*}
 The primary value \(v_{\mathrm{primary}}\) is family-specific: hurdle top height, effective gap width, step top height, or tilted-pad roll angle. The representation is intentionally redundant: a compact low-dimensional signal may otherwise be too weak to affect policy decisions, but extra state can distract from robust behavior when it is not useful.
 
@@ -165,12 +165,12 @@ The primary metric is mean waypoints reached during evaluation. It measures prog
 The first question is whether the original pipeline transfers from static to dynamic terrain. Figure~\ref{fig:baseline_curves} shows that it does not. The static base run reaches nearly one waypoint, while the dynamic base run remains far lower even after a longer run. Camera distillation preserves the same gap: static distillation remains strong, but dynamic distillation remains weak.
 
 \begin{figure*}[htbp]
-   \centering
-   \includegraphics[width=0.48\textwidth]{static_dynamic_waypoints.pdf}
-   \hfill
-   \includegraphics[width=0.48\textwidth]{distillation_waypoints.pdf}
-   \caption{Original pipeline degradation from static to dynamic terrain. Left: base-RL training curves. Right: camera distillation curves, with dashed lines showing base-RL references.}
-   \label{fig:baseline_curves}
+	\centering
+	\includegraphics[width=0.48\textwidth]{static_dynamic_waypoints.pdf}
+	\hfill
+	\includegraphics[width=0.48\textwidth]{distillation_waypoints.pdf}
+	\caption{Original pipeline degradation from static to dynamic terrain. Left: base-RL training curves. Right: camera distillation curves, with dashed lines showing base-RL references.}
+	\label{fig:baseline_curves}
 \end{figure*}
 
 The observed failure modes are family-specific. Hurdles destabilize the body when they move during contact. Gaps require takeoff and landing to be timed against moving support surfaces. Tilted pads can be crossed by aiming near the rotation axis, reducing the value of explicit roll prediction. Dynamic steps were the hardest family: actor contacts often pushed the robot backward before it collected useful progress reward.
@@ -179,49 +179,49 @@ The observed failure modes are family-specific. Hurdles destabilize the body whe
 DAgger-style pretraining improved dynamic learning by placing the policy near a useful static-parkour behavior before reinforcement learning. The imitation losses converged rapidly in the pretraining stage, and the resumed dynamic base policy reached much higher waypoint values than the original dynamic baseline.
 
 \begin{figure}[htbp]
-   \centering
-   \includegraphics[width=\linewidth]{imitation_losses.pdf}
-   \caption{Imitation pretraining losses. The student learns privileged action imitation, history-branch action imitation, and estimator targets before dynamic base-RL fine-tuning.}
-   \label{fig:imitation_losses}
+	\centering
+	\includegraphics[width=\linewidth]{imitation_losses.pdf}
+	\caption{Imitation pretraining losses. The student learns privileged action imitation, history-branch action imitation, and estimator targets before dynamic base-RL fine-tuning.}
+	\label{fig:imitation_losses}
 \end{figure}
 
 Environment latent recovery was then evaluated by obstacle family. Figure~\ref{fig:recovery_modes} compares no dynamic latent augmentation, pure ROA-style recovery, pure teacher-student recovery, and the final hybrid mixed-terrain recovery. The result is not uniform. Gap traversal benefits most from the teacher-student path, consistent with the need to observe moving support surfaces before contact. Hurdle and tilted-pad explicit recovery is weaker or harmful, motivating the mixed-terrain suppression design.
 
 \begin{figure*}[htbp]
-   \centering
-   \includegraphics[width=0.80\textwidth]{recovery_mode_training_curves.pdf}
-   \caption{Per-family waypoint curves for recovery modes. The upper row shows base RL and the lower row shows camera distillation; dashed lines in the distillation row mark corresponding base-RL references.}
-   \label{fig:recovery_modes}
+	\centering
+	\includegraphics[width=0.80\textwidth]{recovery_mode_training_curves.pdf}
+	\caption{Per-family waypoint curves for recovery modes. The upper row shows base RL and the lower row shows camera distillation; dashed lines in the distillation row mark corresponding base-RL references.}
+	\label{fig:recovery_modes}
 \end{figure*}
 
 \subsection{Depth Encoder Loss}
 The depth encoder scan-latent loss was tested on the final hybrid mixed-terrain setting. Figure~\ref{fig:depth_loss} compares distillation with and without this loss. The added supervision reaches a strong best checkpoint, but it does not clearly improve the final outcome over the same hybrid run without the extra loss. The likely reason is that action imitation and dynamic-state supervision already provide strong gradients for the depth pathway, while scan-latent matching may over-constrain an intermediate representation that only needs to be behaviorally useful.
 
 \begin{figure}[htbp]
-   \centering
-   \includegraphics[width=\linewidth]{depth_loss_distill_comparison.pdf}
-   \caption{Hybrid mixed-terrain camera distillation with and without the depth encoder scan-latent loss. Dashed lines mark the shared base-RL reference.}
-   \label{fig:depth_loss}
+	\centering
+	\includegraphics[width=\linewidth]{depth_loss_distill_comparison.pdf}
+	\caption{Hybrid mixed-terrain camera distillation with and without the depth encoder scan-latent loss. Dashed lines mark the shared base-RL reference.}
+	\label{fig:depth_loss}
 \end{figure}
 
 \section{Results and Discussion}
 Table~\ref{tab:final_results} summarizes the best checkpoints in the available evaluation logs. The original static deployment policy reaches \(0.936\) mean waypoints. Applying the original pipeline directly to dynamic terrain drops to \(0.230\). The final hybrid mixed-terrain pipeline recovers to \(0.808\), substantially narrowing the gap to the static deployment reference. Adding the depth encoder loss reaches \(0.748\), which is strong but not a meaningful improvement over the hybrid baseline.
 
 \begin{table}[htb]
-   \centering
-   \caption{Best deployment-stage results from available evaluation CSV files. When a CSV contains per-family rows, values are first averaged by checkpoint.}
-   \label{tab:final_results}
-   \begin{tabular}{llccc}
-      \toprule
-      Pipeline & Terrain & Ckpt. & Waypoints & Reward \\
-      \midrule
-      Original & Static & 10000 & 0.936 & 18.26 \\
-      Original & Dynamic & 20500 & 0.230 & 8.85 \\
-      Imitation only & Dynamic & 9500 & 0.538 & 17.93 \\
-      Hybrid latent & Mixed & 19500 & 0.808 & 16.69 \\
-      Hybrid + depth loss & Mixed & 15500 & 0.748 & 16.06 \\
-      \bottomrule
-   \end{tabular}
+	\centering
+	\caption{Best deployment-stage results from available evaluation CSV files. When a CSV contains per-family rows, values are first averaged by checkpoint.}
+	\label{tab:final_results}
+	\begin{tabular}{llccc}
+		\toprule
+		Pipeline & Terrain & Ckpt. & Waypoints & Reward \\
+		\midrule
+		Original & Static & 10000 & 0.936 & 18.26 \\
+		Original & Dynamic & 20500 & 0.230 & 8.85 \\
+		Imitation only & Dynamic & 9500 & 0.538 & 17.93 \\
+		Hybrid latent & Mixed & 19500 & 0.808 & 16.69 \\
+		Hybrid + depth loss & Mixed & 15500 & 0.748 & 16.06 \\
+		\bottomrule
+	\end{tabular}
 \end{table}
 
 The main lesson is that dynamic obstacle state is useful, but not as a single uniformly supervised latent. Gap timing is a natural fit for visual teacher-student recovery. Hurdle and tilted-pad results show the opposite: adding explicit dynamic labels can distract the learner when the best behavior is robust contact handling or geometric simplification rather than precise state recovery. The mixed task encodes this empirical result by preserving dynamic actors while suppressing unhelpful latent features.
