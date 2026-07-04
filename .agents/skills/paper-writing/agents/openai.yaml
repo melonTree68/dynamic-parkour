@@ -1,0 +1,4 @@
+interface:
+  display_name: "Paper Writing"
+  short_description: "Write and validate the final report."
+  default_prompt: "Use this skill to work on the final paper."
