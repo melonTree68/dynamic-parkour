@@ -1,188 +1,244 @@
 \documentclass[conference]{IEEEtran}
 \usepackage{times}
-
-% numbers option provides compact numerical references in the text. 
 \usepackage[numbers]{natbib}
-\usepackage{multicol}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{amsmath}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 \usepackage[bookmarks=true]{hyperref}
 
-\pdfinfo{
-   /Author (Homer Simpson)
-   /Title  (Robots: Our new overlords)
-   /CreationDate (D:20101201120000)
-   /Subject (Robots)
-   /Keywords (Robots;Overlords)
-}
+\graphicspath{{figures/}}
 
 \begin{document}
 
-% paper title
-\title{Template paper for the \\Robotics: Science and Systems Conference}
+\title{Dynamic-Obstacle Parkour with Quadruped Robots}
 
-% You will get a Paper-ID when submitting a pdf file to the conference system
-\author{Author Names Omitted for Anonymous Review. Paper-ID [add your ID here]}
-
-%\author{\authorblockN{Michael Shell}
-%\authorblockA{School of Electrical and\\Computer Engineering\\
-%Georgia Institute of Technology\\
-%Atlanta, Georgia 30332--0250\\
-%Email: mshell@ece.gatech.edu}
-%\and
-%\authorblockN{Homer Simpson}
-%\authorblockA{Twentieth Century Fox\\
-%Springfield, USA\\
-%Email: homer@thesimpsons.com}
-%\and
-%\authorblockN{James Kirk\\ and Montgomery Scott}
-%\authorblockA{Starfleet Academy\\
-%San Francisco, California 96678-2391\\
-%Telephone: (800) 555--1212\\
-%Fax: (888) 555--1212}}
-
-
-% avoiding spaces at the end of the author lines is not a problem with
-% conference papers because we don't use \thanks or \IEEEmembership
-
-
-% for over three affiliations, or if they all won't fit within the width
-% of the page, use this alternative format:
-% 
-%\author{\authorblockN{Michael Shell\authorrefmark{1},
-%Homer Simpson\authorrefmark{2},
-%James Kirk\authorrefmark{3}, 
-%Montgomery Scott\authorrefmark{3} and
-%Eldon Tyrell\authorrefmark{4}}
-%\authorblockA{\authorrefmark{1}School of Electrical and Computer Engineering\\
-%Georgia Institute of Technology,
-%Atlanta, Georgia 30332--0250\\ Email: mshell@ece.gatech.edu}
-%\authorblockA{\authorrefmark{2}Twentieth Century Fox, Springfield, USA\\
-%Email: homer@thesimpsons.com}
-%\authorblockA{\authorrefmark{3}Starfleet Academy, San Francisco, California 96678-2391\\
-%Telephone: (800) 555--1212, Fax: (888) 555--1212}
-%\authorblockA{\authorrefmark{4}Tyrell Inc., 123 Replicant Street, Los Angeles, California 90210--4321}}
-
+\author{
+   \IEEEauthorblockN{Zhijie Chen}
+   \IEEEauthorblockA{Shanghai Jiao Tong University}
+   \and
+   \IEEEauthorblockN{Shiyi Xiao}
+   \IEEEauthorblockA{Shanghai Jiao Tong University}
+}
 
 \maketitle
 
 \begin{abstract}
-The abstract goes here.
+   We study dynamic-obstacle quadruped parkour in simulation, extending the static-obstacle setting of \emph{Extreme Parkour with Legged Robots}. The original system trains a privileged parkour policy and then distills it to a deployable depth-based policy, but its benchmark is primarily built around static terrain geometry. We ask whether this privileged-to-depth framework can survive moving obstacles whose pose, support surface, and timing change during execution. Our implementation adds an \texttt{a1\_dynamic} task with scripted Isaac Gym obstacle actors, dynamic height-scan overlays, moving goals, and a unified parameter interface for hurdles, gaps, tilted pads, steps, and mixed courses. On top of this infrastructure, we add static-expert DAgger-style imitation pretraining, dynamic environment latent augmentation, family-specific latent recovery modes, a mixed-terrain latent-suppression task, and an optional depth encoder scan-latent loss. The original deployment-stage policy drops from \(0.936\) mean waypoints on static terrain to \(0.230\) on dynamic terrain. The best hybrid mixed-terrain policy recovers to \(0.808\) mean waypoints, while adding the depth encoder loss reaches \(0.748\) and does not provide a clear net benefit. Code is organized as a git repository at \url{https://github.com/melonTree68/extreme-parkour}.
 \end{abstract}
 
 \IEEEpeerreviewmaketitle
 
 \section{Introduction}
-This demo file is intended to serve as a ``starter file" for the
-Robotics: Science and Systems conference papers produced under \LaTeX\
-using IEEEtran.cls version 1.7a and later.  
+Legged parkour requires a controller to couple perception, contact timing, and agile whole-body motion. \citet{cheng2023parkour} showed that a Unitree A1 robot can traverse hurdles, gaps, tilted ramps, and high steps by training a privileged simulation policy and distilling it to a depth-based deployment policy. This is a strong baseline for end-to-end parkour, but the task is mostly static: after terrain generation, obstacle geometry does not move.
 
-\section{Section}
+Dynamic obstacles change the problem. A hurdle can translate into the robot body after takeoff, a gap platform can move before landing, a tilted pad can rotate under the feet, and a step can change height during approach. The policy must therefore reason not only about local shape but also about time-varying obstacle state. This project asks a focused question: can the original privileged-to-depth training pipeline be extended to dynamic-obstacle parkour without replacing the underlying A1 parkour control stack?
 
-Section text here. 
+Our answer is yes, but with important qualifications. The original pipeline degrades sharply when static terrain is replaced by dynamic obstacles. Static-expert imitation pretraining gives a strong initialization for dynamic base reinforcement learning. Dynamic environment latent augmentation then provides an explicit way to test whether obstacle state should be recovered from proprioceptive history, depth observations, or suppressed for particular terrain families. The best-performing final system is not a single uniform recovery mechanism. It is a hybrid mixed-terrain design: gap state is recovered visually during teacher-student distillation, while hurdle and tilted-pad dynamic state are suppressed because explicit recovery did not improve those families.
 
-\subsection{Subsection Heading Here}
-Subsection text here.
+The project contributions are:
+\begin{itemize}
+   \item a detailed dynamic-obstacle A1 parkour infrastructure with scripted actors, dynamic goals, and dynamic height-scan overlays;
+   \item a DAgger-style imitation pretraining stage that bridges static expert behavior to dynamic-terrain fine-tuning;
+   \item a dynamic environment latent representation and recovery framework for family-specific ROA-style and teacher-student recovery;
+   \item an \texttt{a1\_mixed} task that keeps useful dynamic families while suppressing harmful dynamic latent labels;
+   \item an evaluation showing large original-pipeline degradation, strong recovery from the improved pipeline, and no substantial benefit from the added depth encoder scan-latent loss.
+\end{itemize}
 
-\subsubsection{Subsubsection Heading Here}
-Subsubsection text here.
+\section{Related Work and Background}
+This project builds directly on \citet{cheng2023parkour}. Their system uses a two-stage pipeline: a privileged base policy is trained in simulation with terrain scan and privileged state, then a camera/depth student is distilled from the teacher. Their result is part of a broader line of learned legged locomotion systems that use privileged training signals, online adaptation, and onboard perception to handle difficult terrain \citep{kumar2021rma,agarwal2022legged,miki2022learning}. We retain this staged structure and modify the task and latent recovery path around it rather than designing a new controller from scratch.
 
+The original base policy also resembles adaptation methods such as RMA \citep{kumar2021rma}: privileged environment information is available during training, while a history encoder learns to recover latent quantities from recent proprioception. The parkour implementation uses ROA-style latent regularization \citep{fu2021minimizing} during base reinforcement learning. In the deployment stage, teacher-student distillation replaces scan observations with depth-derived latents, following the general idea that a deployable perception module can imitate a privileged teacher \citep{agarwal2022legged}.
 
-\section{RSS citations}
+Our imitation pretraining stage follows the motivation of DAgger \citep{ross2011dagger}. A static expert is useful, but behavior cloning only on expert-induced states can fail after the student makes its own early mistakes in dynamic terrain. We therefore label both expert-driven and student-driven observations before PPO-style dynamic fine-tuning \citep{schulman2017ppo}. All experiments are implemented in Isaac Gym \citep{makoviychuk2021isaacgym}, which allows thousands of parallel A1 parkour environments and extra scripted obstacle actors on GPU.
 
-Please make sure to include \verb!natbib.sty! and to use the
-\verb!plainnat.bst! bibliography style. \verb!natbib! provides additional
-citation commands, most usefully \verb!\citet!. For example, rather than the
-awkward construction 
+\section{System Design}
+Figure~\ref{fig:pipeline} summarizes the final training flow. The system starts from the original static parkour expert, transfers behavior into dynamic terrain through imitation pretraining, fine-tunes a privileged dynamic base policy, and finally distills to a depth-based student. The main difference from the original pipeline is not only the dynamic simulator, but also the latent path used to represent and recover dynamic obstacle state.
 
-{\small
-\begin{verbatim}
-\cite{kalman1960new} demonstrated...
-\end{verbatim}
-}
+\begin{figure*}[htbp]
+   \centering
+   % TODO(image-gen): Generated AI diagram showing the training pipeline from static expert, dynamic obstacle simulator, latent/policy module, and depth-student deployment. Keep embedded text minimal; paper labels and explanation are provided in the caption/body.
+   \includegraphics[width=0.98\textwidth]{training_pipeline_ai.png}
+   \caption{Training pipeline overview. A static A1 expert initializes dynamic-obstacle learning, dynamic terrain exposes scripted moving obstacle state, the policy learns privileged and recovered latent representations, and the final student acts from depth-derived latents.}
+   \label{fig:pipeline}
+\end{figure*}
 
-\noindent
-rendered as ``\cite{kalman1960new} demonstrated...,''
-or the
-inconvenient 
+\subsection{Original Static Parkour Pipeline}
+The baseline task uses a curriculum grid of terrain tiles. Rows control difficulty, columns select terrain families, and each tile contains eight navigation goals. The policy is rewarded for progress toward the current goal and heading alignment, while penalties discourage collisions, unstable posture, torque spikes, and foot placement near terrain edges. Height scans provide privileged exteroception during base training, and depth images replace this scan information during camera distillation.
 
-{\small
-\begin{verbatim}
-Kalman \cite{kalman1960new} 
-demonstrated...
-\end{verbatim}
-}
+\begin{figure}[htbp]
+   \centering
+   \includegraphics[width=\linewidth]{curriculum_tiles_labeled.png}
+   \caption{Curriculum concept reused in the final task design: terrain columns choose obstacle families, while rows increase geometric difficulty.}
+   \label{fig:curriculum}
+\end{figure}
 
-\noindent
-rendered as 
-``Kalman \cite{kalman1960new} demonstrated...'', 
-one can
-write 
+The original training stack has two latent recovery paths. First, during base reinforcement learning, a history encoder learns to match privileged latent variables from recent proprioceptive observations. Second, during camera distillation, a depth encoder predicts scan-derived latent information and yaw correction so that the deployment policy can act without privileged terrain scans. Dynamic parkour stresses both mechanisms because obstacle state may be visible before contact, only inferable after contact, or not useful at all.
 
-{\small
-\begin{verbatim}
-\citet{kalman1960new} demonstrated... 
-\end{verbatim}
-}
-\noindent
-which renders as ``\citet{kalman1960new} demonstrated...'' and is 
-both easy to write and much easier to read.
-  
-\subsection{RSS Hyperlinks}
+\subsection{Dynamic-Obstacle Task Infrastructure}
+The \texttt{a1\_dynamic} task keeps the A1 robot, eight-goal course interface, curriculum shape, and observation contract of the original task, but replaces static terrain families with dynamic obstacle families. It is registered as a separate task and uses a dynamic-specific environment class so that the original \texttt{a1} task remains available as a static baseline.
 
-This year, we would like to use the ability of PDF viewers to interpret
-hyperlinks, specifically to allow each reference in the bibliography to be a
-link to an online version of the reference. 
-As an example, if you were to cite ``Passive Dynamic Walking''
-\cite{McGeer01041990}, the entry in the bibtex would read:
+Dynamic terrain generation separates static foundations from moving obstacle metadata. The heightfield still provides the ground mesh and coarse course layout. In addition, each tile stores the dynamic family, difficulty, obstacle dimensions, motion type, motion group, goal-to-motion mapping, and per-slot actor specifications. Each environment has six obstacle groups and two actor slots per group. Hurdles, tilted pads, and steps use one active slot and one inactive parked slot; gaps use both slots for moving takeoff and landing supports.
 
-{\small
-\begin{verbatim}
-@article{McGeer01041990,
-  author = {McGeer, Tad}, 
-  title = {\href{http://ijr.sagepub.com/content/9/2/62.abstract}{Passive Dynamic Walking}}, 
-  volume = {9}, 
-  number = {2}, 
-  pages = {62-82}, 
-  year = {1990}, 
-  doi = {10.1177/027836499000900206}, 
-  URL = {http://ijr.sagepub.com/content/9/2/62.abstract}, 
-  eprint = {http://ijr.sagepub.com/content/9/2/62.full.pdf+html}, 
-  journal = {The International Journal of Robotics Research}
-}
-\end{verbatim}
-}
-\noindent
-and the entry in the compiled PDF would look like:
+At runtime, dynamic obstacles are gravity-disabled Isaac Gym box actors. The environment creates these actors after the robot actor, resets their poses when a robot is assigned to a new curriculum tile, and updates their root states before physics steps. Hurdles translate along the forward axis, gap platforms translate as paired supports, tilted pads rotate about roll, and steps move vertically. Motion is scripted with sampled amplitude, period, and phase, so the simulator always has an analytic dynamic state label.
 
-\def\tmplabel#1{[#1]}
+The terrain observation must also reflect moving surfaces. The dynamic environment starts from the inherited static height scan, then analytically overlays the current top surfaces of active obstacle actors. This preserves the scan dimensionality while making privileged terrain observations time-varying. Goals tied to moving support surfaces, especially gap takeoff and landing platforms, are translated with their motion groups. The policy is therefore trained to move toward the current traversable support rather than a stale generated waypoint.
 
-\begin{enumerate}
-\item[\tmplabel{1}] Tad McGeer. \href{http://ijr.sagepub.com/content/9/2/62.abstract}{Passive Dynamic
-Walking}. {\em The International Journal of Robotics Research}, 9(2):62--82,
-1990.
-\end{enumerate}
-%
-where the title of the article is a link that takes you to the article on IJRR's website. 
+The dynamic task exposes a unified configuration interface for the main obstacle families. Hurdles vary in height, thickness, spacing, translation amplitude, and period. Gaps vary in effective gap size, platform dimensions, spacing, translation amplitude, and period. Tilted pads vary in lateral placement, roll amplitude, and period. Steps vary in height range, vertical amplitude, and period. Difficulty rows interpolate these ranges before uniform sampling. The mixed dynamic-demo family combines hurdle, step, gap, and tilted-pad groups into one course.
 
+\subsection{DAgger-Style Imitation Pretraining}
+Training dynamic parkour from scratch is difficult because early failures prevent the policy from reaching informative states. We therefore insert an imitation stage between the static expert and dynamic base reinforcement learning. The expert is a static-terrain A1 policy; the student is the dynamic policy that will later be fine-tuned with PPO.
 
-Linking cited articles will not always be possible, especially for
-older articles. There are also often several versions of papers
-online: authors are free to decide what to use as the link destination
-yet we strongly encourage to link to archival or publisher sites
-(such as IEEE Xplore or Sage Journals).  We encourage all authors to use this feature to
-the extent possible.
+\begin{algorithm}[htb]
+   \small
+   \caption{DAgger-style imitation pretraining}
+   \label{alg:dagger}
+   \begin{algorithmic}[1]
+      \Require static expert \(\pi_E\), dynamic environment
+      \State Initialize student \(\pi_\theta\)
+      \State Initialize teacher replay \(B_E\) and student replay \(B_S\)
+      \For{\(k=0,\ldots,K-1\)}
+      \If{\(k\) is the warmup iteration}
+      \State Roll out \(\pi_E\) and store \((o,\pi_E(o))\) in \(B_E\)
+      \Else
+      \State Roll out \(\pi_E\) and append labeled states to \(B_E\)
+      \State Roll out \(\pi_\theta\) and label visited states with \(\pi_E\)
+      \State Append student-induced samples to \(B_S\)
+      \EndIf
+      \State Sample balanced minibatches from \(B_E\) and \(B_S\)
+      \State Minimize action, history-action, estimator, and enabled dynamic latent losses
+      \EndFor
+      \State \Return \(\pi_\theta\) for dynamic base RL fine-tuning
+   \end{algorithmic}
+\end{algorithm}
 
-\section{Conclusion} 
-\label{sec:conclusion}
+The imitation objective trains both the privileged actor path and the history-encoding actor path. It also trains the estimator used by the original pipeline, so the resulting checkpoint can be consumed by the normal base-RL runner. When dynamic environment latent augmentation is enabled, imitation also supervises the masked dynamic-state recovery losses for families assigned to ROA-style recovery.
 
-The conclusion goes here.
+\subsection{Dynamic Environment Latent Augmentation}
+The core augmentation is a low-dimensional dynamic obstacle state appended after the original privileged latent slice. For \texttt{a1\_dynamic}, this vector has 30 dimensions: two upcoming obstacle groups, each represented by 15 features. Static \texttt{a1} keeps this dimension at zero.
+
+Each group contains validity and type bits, relative geometry, motion state, and motion parameters. The features are:
+\begin{equation}
+\begin{split}
+&\text{valid},\ \text{hurdle},\ \text{gap},\ \text{step},\ \text{tilted pad},\\
+&x_0,\ x_1,\ y,\ v_{\mathrm{primary}},\ \dot{v}_{\mathrm{primary}},\ \ddot{v}_{\mathrm{primary}},\\
+&\sin \phi,\ \cos \phi,\ A,\ \omega .
+\end{split}
+\end{equation}
+The primary value is family-specific: hurdle top height, effective gap width, step top height, or tilted-pad roll angle. The representation is intentionally redundant: it includes type, geometry, phase, derivatives, amplitude, and frequency rather than only a minimal physical state. This makes it easier to analyze recovery behavior, but it also creates the risk that explicit labels distract from robust behavior when the state is not useful.
+
+Recovery mode is configured per obstacle family. In ROA-style recovery, the history encoder predicts dynamic state during base RL and the policy later consumes the recovered history latent. In teacher-student recovery, the depth encoder predicts the dynamic state during camera distillation. A hybrid configuration can assign different families to different recovery paths.
+
+\subsection{Mixed Terrain and Latent Suppression}
+The per-family ablations showed that not all dynamic state should be exposed. Gap state is strongly tied to visual timing: the robot benefits from knowing where the moving takeoff and landing supports are. Tilted-pad state was a negative improvement in both ROA-style and teacher-student experiments. Hurdle state was also not consistently useful; the dominant difficulty appeared to be robustness to contact and collision artifacts rather than precise phase recovery.
+
+The final \texttt{a1\_\allowbreak mixed} task keeps the dynamic infrastructure but changes the terrain mixture and latent mask. It uses \texttt{mixed\_\allowbreak hurdle}, \texttt{dynamic\_\allowbreak gap}, \texttt{mixed\_\allowbreak tilted\_\allowbreak pads}, \texttt{parkour\_\allowbreak step}, and \texttt{mixed\_\allowbreak demo}. The mixed hurdle and mixed tilted-pad courses retain the same visible moving actors as their dynamic counterparts, but suppress dynamic state features. The gap family keeps dynamic latent recovery. The dynamic step is replaced by the static parkour step because the current dynamic step actor generated poor learning signals and frequent collision-induced failures.
+
+\subsection{Depth Encoder Scan-Latent Loss}
+The final extension adds an optional scan-latent matching loss during camera distillation:
+\begin{equation}
+L_{\mathrm{scan}} =
+\left\| z_{\mathrm{scan}} - z_{\mathrm{depth}} \right\|_2 .
+\end{equation}
+When enabled, it is added to the existing depth actor update:
+\begin{equation}
+L = L_{\mathrm{action}} + L_{\mathrm{yaw}} + w_{\mathrm{dyn}}L_{\mathrm{dyn}} + L_{\mathrm{scan}} .
+\end{equation}
+The loss is integrated into the same backward pass as the depth actor losses, so the depth actor and depth encoder are updated consistently. This was intended to stabilize the depth latent that replaces privileged scan information. As shown in the experiments, it did not produce a substantial final improvement.
+
+\section{Experiments}
+\subsection{Setup and Metrics}
+All experiments use the A1 parkour simulator in Isaac Gym. We compare the original static pipeline, the original pipeline applied directly to dynamic terrain, imitation-pretrained dynamic training, environment-latent recovery variants, hybrid mixed terrain, and hybrid mixed terrain with depth encoder loss.
+
+The primary metric is mean waypoints reached during evaluation. It measures progress through the eight-goal course and is more interpretable than reward alone for parkour. We also report mean reward because it reflects PPO's training proxy and helps identify cases where a run collects dense shaping reward without making comparable course progress. For training curves, smoothed waypoint curves are plotted from evaluation CSV files. Dashed horizontal lines in distillation plots mark corresponding base-RL reference performance.
+
+\subsection{Original Pipeline Degradation}
+The first question is whether the original pipeline transfers from static to dynamic terrain. Figure~\ref{fig:baseline_curves} shows that it does not. The static base run reaches nearly one waypoint, while the dynamic base run remains far lower even after a longer run. Camera distillation preserves the same gap: static distillation remains strong, but dynamic distillation remains weak.
+
+\begin{figure*}[htbp]
+   \centering
+   \includegraphics[width=0.48\textwidth]{static_dynamic_waypoints.pdf}
+   \hfill
+   \includegraphics[width=0.48\textwidth]{distillation_waypoints.pdf}
+   \caption{Original pipeline degradation from static to dynamic terrain. Left: base-RL training curves. Right: camera distillation curves, with dashed lines showing base-RL references.}
+   \label{fig:baseline_curves}
+\end{figure*}
+
+The observed failure modes are family-specific. Hurdles destabilize the body when they move during contact. Gaps require takeoff and landing to be timed against moving support surfaces. Tilted pads can be crossed by aiming near the rotation axis, reducing the value of explicit roll prediction. Dynamic steps were the hardest family: actor contacts often pushed the robot backward before it collected useful progress reward.
+
+\subsection{Imitation and Latent Recovery}
+DAgger-style pretraining improved dynamic learning by placing the policy near a useful static-parkour behavior before reinforcement learning. The imitation losses converged rapidly in the pretraining stage, and the resumed dynamic base policy reached much higher waypoint values than the original dynamic baseline.
+
+\begin{figure}[htbp]
+   \centering
+   \includegraphics[width=\linewidth]{imitation_losses.pdf}
+   \caption{Imitation pretraining losses. The student learns privileged action imitation, history-branch action imitation, and estimator targets before dynamic base-RL fine-tuning.}
+   \label{fig:imitation_losses}
+\end{figure}
+
+Environment latent recovery was then evaluated by obstacle family. Figure~\ref{fig:recovery_modes} compares no dynamic latent augmentation, pure ROA-style recovery, pure teacher-student recovery, and the final hybrid mixed-terrain recovery. The result is not uniform. Gap traversal benefits most from the teacher-student path, consistent with the need to observe moving support surfaces before contact. Hurdle and tilted-pad explicit recovery is weaker or harmful, motivating the mixed-terrain suppression design.
+
+\begin{figure*}[htbp]
+   \centering
+   \includegraphics[width=0.80\textwidth]{recovery_mode_training_curves.pdf}
+   \caption{Per-family waypoint curves for recovery modes. The upper row shows base RL and the lower row shows camera distillation; dashed lines in the distillation row mark corresponding base-RL references.}
+   \label{fig:recovery_modes}
+\end{figure*}
+
+\subsection{Depth Encoder Loss}
+The depth encoder scan-latent loss was tested on the final hybrid mixed-terrain setting. Figure~\ref{fig:depth_loss} compares distillation with and without this loss. The added supervision reaches a strong best checkpoint, but it does not clearly improve the final outcome over the same hybrid run without the extra loss. The likely reason is that action imitation and dynamic-state supervision already provide strong gradients for the depth pathway, while scan-latent matching may over-constrain an intermediate representation that only needs to be behaviorally useful.
+
+\begin{figure}[htbp]
+   \centering
+   \includegraphics[width=\linewidth]{depth_loss_distill_comparison.pdf}
+   \caption{Hybrid mixed-terrain camera distillation with and without the depth encoder scan-latent loss. Dashed lines mark the shared base-RL reference.}
+   \label{fig:depth_loss}
+\end{figure}
+
+\clearpage
+
+\section{Results and Discussion}
+Table~\ref{tab:final_results} summarizes the best checkpoints in the available evaluation logs. The original static deployment policy reaches \(0.936\) mean waypoints. Applying the original pipeline directly to dynamic terrain drops to \(0.230\). The final hybrid mixed-terrain pipeline recovers to \(0.808\), substantially narrowing the gap to the static deployment reference. Adding the depth encoder loss reaches \(0.748\), which is strong but not a meaningful improvement over the hybrid baseline.
+
+\begin{table}[htb]
+   \centering
+   \caption{Best deployment-stage results from available evaluation CSV files. When a CSV contains per-family rows, values are first averaged by checkpoint.}
+   \label{tab:final_results}
+   \begin{tabular}{llccc}
+      \toprule
+      Pipeline & Terrain & Ckpt. & Waypoints & Reward \\
+      \midrule
+      Original & Static & 10000 & 0.936 & 18.26 \\
+      Original & Dynamic & 20500 & 0.230 & 8.85 \\
+      Imitation only & Dynamic & 9500 & 0.538 & 17.93 \\
+      Hybrid latent & Mixed & 19500 & 0.808 & 16.69 \\
+      Hybrid + depth loss & Mixed & 15500 & 0.748 & 16.06 \\
+      \bottomrule
+   \end{tabular}
+\end{table}
+
+The main lesson is that dynamic obstacle state is useful, but not as a single uniformly supervised latent. Gap timing is a natural fit for visual teacher-student recovery. Hurdle and tilted-pad results show the opposite: adding explicit dynamic labels can distract the learner when the best behavior is robust contact handling or geometric simplification rather than precise state recovery. The mixed task encodes this empirical result by preserving dynamic actors while suppressing unhelpful latent features.
+
+The second lesson is that initialization matters. Dynamic parkour is sparse and contact-rich; without a reasonable behavior prior, the policy often fails before it reaches informative obstacle interactions. DAgger-style pretraining from a static expert does not solve the dynamic task by itself, but it gives a useful starting distribution for later reinforcement learning and latent recovery.
+
+Finally, the depth encoder loss result is a negative result worth reporting. Directly matching the scan latent is intuitively appealing, but the final policy does not need to reconstruct the teacher's internal scan representation exactly. It needs a latent that supports good actions. The extra loss may help early stability or representation interpretability, but in these runs it did not improve the best final waypoint result.
+
+\section{Conclusion}
+This project extends static A1 parkour to dynamic-obstacle parkour and evaluates how the original privileged-to-depth pipeline can be adapted. The implemented dynamic task provides moving obstacle actors, dynamic height scans, moving goals, and a configurable family-level interface. The improved training pipeline combines DAgger-style static-expert pretraining, dynamic environment latent augmentation, family-specific recovery, mixed-terrain latent suppression, and an optional depth encoder loss.
+
+The final results show that the original pipeline degrades severely on dynamic terrain, while the improved hybrid mixed-terrain pipeline recovers most of the lost performance. The best design is not a uniform dynamic latent policy: gap state should be recovered visually, while hurdle and tilted-pad state are better suppressed in the final mixed task. Future work should add targeted timing metrics such as takeoff error and landing stability, improve dynamic contact modeling for steps and hurdles, and stress-test depth recovery under latency, frame drops, and partial observability.
 
 \section*{Acknowledgments}
-
-%% Use plainnat to work nicely with natbib. 
+We thank the course staff for the project structure and evaluation guidance.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
 
+\appendices
+\section{Author Contributions}
+Zhijie Chen led the system design, algorithm implementation, experiment design and execution, data analysis, and final writing. His contributions include dynamic-obstacle infrastructure, DAgger-style imitation pretraining, hybrid environment latent augmentation and recovery, depth encoder loss integration, task tuning, ablation experiments, the proposal, the midterm report, oral presentation slides, and the final paper.
+
+Shiyi Xiao explored possible dynamic-obstacle parkour task solutions during the project.
+
 \end{document}
-
-
