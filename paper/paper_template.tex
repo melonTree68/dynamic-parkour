@@ -196,8 +196,6 @@ The depth encoder scan-latent loss was tested on the final hybrid mixed-terrain 
    \label{fig:depth_loss}
 \end{figure}
 
-\clearpage
-
 \section{Results and Discussion}
 Table~\ref{tab:final_results} summarizes the best checkpoints in the available evaluation logs. The original static deployment policy reaches \(0.936\) mean waypoints. Applying the original pipeline directly to dynamic terrain drops to \(0.230\). The final hybrid mixed-terrain pipeline recovers to \(0.808\), substantially narrowing the gap to the static deployment reference. Adding the depth encoder loss reaches \(0.748\), which is strong but not a meaningful improvement over the hybrid baseline.
 
@@ -228,9 +226,6 @@ Finally, the depth encoder loss result is a negative result worth reporting. Dir
 This project extends static A1 parkour to dynamic-obstacle parkour and evaluates how the original privileged-to-depth pipeline can be adapted. The implemented dynamic task provides moving obstacle actors, dynamic height scans, moving goals, and a configurable family-level interface. The improved training pipeline combines DAgger-style static-expert pretraining, dynamic environment latent augmentation, family-specific recovery, mixed-terrain latent suppression, and an optional depth encoder loss.
 
 The final results show that the original pipeline degrades severely on dynamic terrain, while the improved hybrid mixed-terrain pipeline recovers most of the lost performance. The best design is not a uniform dynamic latent policy: gap state should be recovered visually, while hurdle and tilted-pad state are better suppressed in the final mixed task. Future work should add targeted timing metrics such as takeoff error and landing stability, improve dynamic contact modeling for steps and hurdles, and stress-test depth recovery under latency, frame drops, and partial observability.
-
-\section*{Acknowledgments}
-We thank the course staff for the project structure and evaluation guidance.
 
 \bibliographystyle{plainnat}
 \bibliography{references}
