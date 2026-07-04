@@ -97,19 +97,19 @@ Training dynamic parkour from scratch is difficult because early failures preven
    \begin{algorithmic}[1]
       \Require static expert \(\pi_E\), dynamic environment
       \State Initialize student \(\pi_\theta\)
-      \State Initialize teacher replay \(B_E\) and student replay \(B_S\)
-      \For{\(k=0,\ldots,K-1\)}
-      \If{\(k\) is the warmup iteration}
+      \State Initialize teacher replay buffer \(B_E\) and student replay buffer \(B_S\)
+      \For{\(k=0,\dots,K-1\)}
+      \If{\(k\) is the BC warmup iteration}
       \State Roll out \(\pi_E\) and store \((o,\pi_E(o))\) in \(B_E\)
       \Else
       \State Roll out \(\pi_E\) and append labeled states to \(B_E\)
       \State Roll out \(\pi_\theta\) and label visited states with \(\pi_E\)
       \State Append student-induced samples to \(B_S\)
       \EndIf
-      \State Sample balanced minibatches from \(B_E\) and \(B_S\)
-      \State Minimize action, history-action, estimator, and enabled dynamic latent losses
+      \State Sample a balanced minibatch from \(B_E\) and \(B_S\)
+      \State Update \(\pi_\theta\) with action, history-action, and estimator losses
       \EndFor
-      \State \Return \(\pi_\theta\) for dynamic base RL fine-tuning
+      \State \Return \(\pi_\theta\) for base RL fine-tuning
    \end{algorithmic}
 \end{algorithm}
 
