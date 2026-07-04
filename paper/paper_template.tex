@@ -83,11 +83,11 @@ Dynamic terrain generation separates static foundations from moving obstacle met
 
 At runtime, dynamic obstacles are gravity-disabled Isaac Gym box actors. The environment creates these actors after the robot actor, resets their poses when a robot is assigned to a new curriculum tile, and updates their root states before physics steps. Hurdles translate along the forward axis, gap platforms translate as paired supports, tilted pads rotate about roll, and steps move vertically.
 
-Obstacle motion is scripted by sinusoidal signals. For each obstacle group, the curriculum difficulty interpolates type-specific motion parameter ranges before the environment uniformly samples the actual amplitude and period. Random phase offsets decorrelate obstacle timing across environments. Gap tiles synchronize all gap groups so that takeoff and landing supports move consistently.
+Obstacle motion is scripted by sinusoidal signals. For each obstacle group, the curriculum difficulty interpolates obstacle-type-specific motion parameter ranges before the environment uniformly samples the actual amplitude and period. Random phase offsets decorrelate obstacle timing across environments. Gap tiles synchronize phase across all gap groups so that takeoff and landing supports move consistently and stably.
 
-The terrain observation must also reflect moving surfaces. The dynamic environment starts from the inherited static height scan, then analytically overlays the current top surfaces of active obstacle actors. This preserves the scan dimensionality while making privileged terrain observations time-varying. Goals tied to moving support surfaces, especially gap takeoff and landing platforms, are translated with their motion groups. The policy is therefore trained to move toward the current traversable support rather than a stale generated waypoint.
+On top of the original static height scan, the dynamic environment additionally overlays the current top surfaces of active obstacle actors. Goals tied to moving supports, namely gap takeoff and landing platforms, are translated with the same motion groups so the policy targets the current traversable surface.
 
-The dynamic task exposes a unified configuration interface for the main obstacle families. Hurdles vary in height, thickness, spacing, translation amplitude, and period. Gaps vary in effective gap size, platform dimensions, spacing, translation amplitude, and period. Tilted pads vary in lateral placement, roll amplitude, and period. Steps vary in height range, vertical amplitude, and period. Difficulty rows interpolate these ranges before uniform sampling. The mixed dynamic-demo family combines hurdle, step, gap, and tilted-pad groups into one course.
+The dynamic task exposes a unified configuration interface for the main obstacle families. Hurdles vary in height, thickness, translation amplitude, and period. Gaps vary in gap width, platform dimensions, translation amplitude, and period. Tilted pads vary in lateral placement, roll amplitude, and period. Steps vary in mean height range, vertical amplitude, and period. Curriculum difficulty interpolates these ranges before uniform sampling.
 
 \subsection{DAgger-Style Imitation Pretraining}
 Training dynamic parkour from scratch is difficult because early failures prevent the policy from reaching informative states. We therefore insert an imitation stage between the static expert and dynamic base reinforcement learning. The expert is a static-terrain A1 policy; the student is the dynamic policy that will later be fine-tuned with PPO.
@@ -121,13 +121,11 @@ The imitation objective trains both the privileged actor path and the history-en
 The core augmentation is a low-dimensional dynamic obstacle state appended after the original privileged latent slice. For \texttt{a1\_dynamic}, this vector has 30 dimensions: two upcoming obstacle groups, each represented by 15 features. Static \texttt{a1} keeps this dimension at zero.
 
 Each group contains validity and type bits, relative geometry, motion state, and motion parameters. The features are:
-\begin{equation}
-\begin{split}
+\[\begin{split}
 &\text{valid},\ \text{hurdle},\ \text{gap},\ \text{step},\ \text{tilted pad},\\
 &x_0,\ x_1,\ y,\ v_{\mathrm{primary}},\ \dot{v}_{\mathrm{primary}},\ \ddot{v}_{\mathrm{primary}},\\
 &\sin \phi,\ \cos \phi,\ A,\ \omega .
-\end{split}
-\end{equation}
+\end{split}\]
 The primary value is family-specific: hurdle top height, effective gap width, step top height, or tilted-pad roll angle. The representation is intentionally redundant: it includes type, geometry, phase, derivatives, amplitude, and frequency rather than only a minimal physical state. This makes it easier to analyze recovery behavior, but it also creates the risk that explicit labels distract from robust behavior when the state is not useful.
 
 Recovery mode is configured per obstacle family. In ROA-style recovery, the history encoder predicts dynamic state during base RL and the policy later consumes the recovered history latent. In teacher-student recovery, the depth encoder predicts the dynamic state during camera distillation. A hybrid configuration can assign different families to different recovery paths.
@@ -139,14 +137,9 @@ The final \texttt{a1\_\allowbreak mixed} task keeps the dynamic infrastructure b
 
 \subsection{Depth Encoder Scan-Latent Loss}
 The final extension adds an optional scan-latent matching loss during camera distillation:
-\begin{equation}
-L_{\mathrm{scan}} =
-\left\| z_{\mathrm{scan}} - z_{\mathrm{depth}} \right\|_2 .
-\end{equation}
+\[L_{\mathrm{scan}}=\left\|z_{\mathrm{scan}}-z_{\mathrm{depth}}\right\|_2.\]
 When enabled, it is added to the existing depth actor update:
-\begin{equation}
-L = L_{\mathrm{action}} + L_{\mathrm{yaw}} + w_{\mathrm{dyn}}L_{\mathrm{dyn}} + L_{\mathrm{scan}} .
-\end{equation}
+\[L=L_{\mathrm{action}}+L_{\mathrm{yaw}}+w_{\mathrm{dyn}}L_{\mathrm{dyn}}+L_{\mathrm{scan}}.\]
 The loss is integrated into the same backward pass as the depth actor losses, so the depth actor and depth encoder are updated consistently. This was intended to stabilize the depth latent that replaces privileged scan information. As shown in the experiments, it did not produce a substantial final improvement.
 
 \section{Experiments}
