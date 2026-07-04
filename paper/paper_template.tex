@@ -53,35 +53,37 @@ Learning-based legged locomotion has increasingly used privileged simulation sig
 Dynamic-obstacle parkour also connects to latent recovery and imitation learning. ROA-style latent regularization encourages a recovered latent representation to match privileged information during reinforcement learning \citep{fu2021minimizing}. DAgger addresses the distribution shift of behavior cloning by adding labels on states induced by the learner, rather than relying only on expert-induced trajectories \citep{ross2011dagger}.
 
 \section{System Design}
-Figure~\ref{fig:pipeline} summarizes the final training flow. The system starts from the original static parkour expert, transfers behavior into dynamic terrain through imitation pretraining, fine-tunes a privileged dynamic base policy, and finally distills to a depth-based student. The main difference from the original pipeline is not only the dynamic simulator, but also the latent path used to represent and recover dynamic obstacle state.
+Figure~\ref{fig:pipeline} summarizes our improved training pipeline. The system starts from the original static parkour expert, transfers behavior into dynamic terrain through imitation pretraining, fine-tunes a privileged dynamic base policy, and finally distills to a depth-based student. Dynamic environment latent augmentation exposes obstacle state during training, while the final hybrid recovery design recovers useful gap state from depth and suppresses dynamic latent labels for families where explicit recovery is harmful.
 
 \begin{figure*}[htbp]
    \centering
    % TODO(image-gen): Pipeline figure uses verified demo frames, an AI-generated depth-view rollout matched to the demo viewpoint, the original-paper MLP glyph, and deterministic labels/arrows from figures/build_training_pipeline.py.
    \includegraphics[width=0.98\textwidth]{training_pipeline_ai.png}
    \vspace{-2.5em}
-   \caption{Training pipeline overview. A static A1 expert initializes dynamic-obstacle learning, dynamic terrain exposes scripted moving obstacle state, the policy learns privileged and recovered latent representations, and the final student acts from depth-derived latents.}
+   \caption{Training pipeline overview. A static parkour expert provides imitation targets for dynamic-terrain pretraining, the privileged dynamic policy is fine-tuned with obstacle-state latents, and the deployable depth student uses hybrid recovery to keep useful dynamic state while suppressing harmful latent labels.}
    \label{fig:pipeline}
 \end{figure*}
 
-\subsection{Original Static Parkour Pipeline}
+\subsection{Baseline Static Parkour Pipeline}
 The baseline task uses a curriculum grid of terrain tiles. Rows control difficulty, columns select terrain families, and each tile contains eight navigation goals. The policy is rewarded for progress toward the current goal and heading alignment, while penalties discourage collisions, unstable posture, torque spikes, and foot placement near terrain edges. Height scans provide privileged exteroception during base training, and depth images replace this scan information during camera distillation.
 
 \begin{figure}[htbp]
    \centering
    \includegraphics[width=\linewidth]{curriculum_tiles_labeled.png}
-   \caption{Curriculum concept reused in the final task design: terrain columns choose obstacle families, while rows increase geometric difficulty.}
+   \caption{Curriculum structure: columns select obstacle families, while rows control difficulty.}
    \label{fig:curriculum}
 \end{figure}
 
-The original training stack has two latent recovery paths. First, during base reinforcement learning, a history encoder learns to match privileged latent variables from recent proprioceptive observations. Second, during camera distillation, a depth encoder predicts scan-derived latent information and yaw correction so that the deployment policy can act without privileged terrain scans. Dynamic parkour stresses both mechanisms because obstacle state may be visible before contact, only inferable after contact, or not useful at all.
+The baseline training stack has two latent recovery paths. First, during base reinforcement learning, a history encoder learns to match privileged latent variables from recent proprioceptive observations. Second, during camera distillation, a depth encoder predicts scan-derived latent information and yaw correction so that the deployment policy can act without privileged terrain scans. Dynamic parkour stresses both mechanisms because obstacle state may be visible before contact, only inferable after contact, or not useful at all.
 
 \subsection{Dynamic-Obstacle Task Infrastructure}
-The \texttt{a1\_dynamic} task keeps the A1 robot, eight-goal course interface, curriculum shape, and observation contract of the original task, but replaces static terrain families with dynamic obstacle families. It is registered as a separate task and uses a dynamic-specific environment class so that the original \texttt{a1} task remains available as a static baseline.
+The \texttt{a1\_dynamic} task keeps the A1 robot, eight-goal course interface, curriculum shape, and observation contract of the original task, but replaces static terrain families with dynamic obstacle families. It is registered as a separate task and uses a dynamic-specific environment class so that the original \texttt{a1} task remains available.
 
 Dynamic terrain generation separates static foundations from moving obstacle metadata. The heightfield still provides the ground mesh and coarse course layout. In addition, each tile stores the dynamic family, difficulty, obstacle dimensions, motion type, motion group, goal-to-motion mapping, and per-slot actor specifications. Each environment has six obstacle groups and two actor slots per group. Hurdles, tilted pads, and steps use one active slot and one inactive parked slot; gaps use both slots for moving takeoff and landing supports.
 
-At runtime, dynamic obstacles are gravity-disabled Isaac Gym box actors. The environment creates these actors after the robot actor, resets their poses when a robot is assigned to a new curriculum tile, and updates their root states before physics steps. Hurdles translate along the forward axis, gap platforms translate as paired supports, tilted pads rotate about roll, and steps move vertically. Motion is scripted with sampled amplitude, period, and phase, so the simulator always has an analytic dynamic state label.
+At runtime, dynamic obstacles are gravity-disabled Isaac Gym box actors. The environment creates these actors after the robot actor, resets their poses when a robot is assigned to a new curriculum tile, and updates their root states before physics steps. Hurdles translate along the forward axis, gap platforms translate as paired supports, tilted pads rotate about roll, and steps move vertically.
+
+Obstacle motion is scripted by sinusoidal signals. For each obstacle group, the curriculum difficulty interpolates type-specific motion parameter ranges before the environment uniformly samples the actual amplitude and period. Random phase offsets decorrelate obstacle timing across environments. Gap tiles synchronize all gap groups so that takeoff and landing supports move consistently.
 
 The terrain observation must also reflect moving surfaces. The dynamic environment starts from the inherited static height scan, then analytically overlays the current top surfaces of active obstacle actors. This preserves the scan dimensionality while making privileged terrain observations time-varying. Goals tied to moving support surfaces, especially gap takeoff and landing platforms, are translated with their motion groups. The policy is therefore trained to move toward the current traversable support rather than a stale generated waypoint.
 

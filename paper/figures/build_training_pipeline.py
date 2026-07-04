@@ -1,16 +1,18 @@
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont, ImageOps
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
 
 HERE = Path(__file__).resolve().parent
 FRAMES = HERE / "training_pipeline_frames"
+ASSETS = HERE / "training_pipeline_assets"
 OUT = HERE / "training_pipeline_ai.png"
 
-W, H = 2400, 920
+W, H = 2700, 920
 PANEL_Y = 145
 PANEL_H = 610
 RADIUS = 28
+LABEL_BG = (18, 52, 94, 185)
 
 
 def font(size, bold=False):
@@ -31,17 +33,24 @@ F_TITLE = font(44, bold=True)
 F_ARROW = font(30, bold=True)
 F_LABEL = font(24, bold=True)
 F_SMALL = font(21, bold=False)
+F_BLOCK = font(25, bold=False)
 
 
 def crop_sim_frame(path):
     img = Image.open(path).convert("RGB")
-    # Demo frames have a large black sky; keep enough horizon for context while
-    # dedicating most space to the terrain and obstacle actor.
-    return img.crop((0, 115, img.width, img.height))
+    # Keep the demo viewpoint but remove empty simulator sky so the obstacles
+    # remain legible after the paper scales the figure down.
+    top = min(70, img.height // 4)
+    return img.crop((0, top, img.width, img.height))
 
 
 def fit_cover(img, size):
-    return ImageOps.fit(img, size, method=Image.Resampling.LANCZOS, centering=(0.5, 0.55))
+    return ImageOps.fit(img, size, method=Image.Resampling.BICUBIC, centering=(0.5, 0.62))
+
+
+def prepare_frame(img):
+    img = ImageOps.autocontrast(img, cutoff=1)
+    return img.filter(ImageFilter.UnsharpMask(radius=1.2, percent=150, threshold=3))
 
 
 def rounded_panel(draw, box, outline):
@@ -57,11 +66,23 @@ def rounded_panel(draw, box, outline):
 
 def paste_rounded(canvas, img, box, radius=RADIUS - 4):
     x, y, w, h = box
-    fitted = fit_cover(img, (w, h)).convert("RGBA")
+    fitted = fit_cover(prepare_frame(img), (w, h)).convert("RGBA")
     mask = Image.new("L", (w, h), 0)
     mdraw = ImageDraw.Draw(mask)
     mdraw.rounded_rectangle([0, 0, w, h], radius=radius, fill=255)
     canvas.paste(fitted, (x, y), mask)
+
+
+def paste_contain(canvas, img, box):
+    x, y, w, h = box
+    src = img.convert("RGBA")
+    bbox = src.getbbox()
+    if bbox:
+        src = src.crop(bbox)
+    src.thumbnail((w, h), Image.Resampling.LANCZOS)
+    px = x + (w - src.width) // 2
+    py = y + (h - src.height) // 2
+    canvas.paste(src, (px, py), src)
 
 
 def draw_text_center(draw, x, y, text, fnt, fill=(25, 28, 33)):
@@ -71,7 +92,7 @@ def draw_text_center(draw, x, y, text, fnt, fill=(25, 28, 33)):
     draw.multiline_text((x - w / 2, y - h / 2), text, font=fnt, fill=fill, spacing=5, align="center")
 
 
-def draw_label(draw, xy, text, fill=(255, 255, 255), bg=(0, 0, 0, 170)):
+def draw_label(draw, xy, text, fill=(255, 255, 255), bg=LABEL_BG):
     x, y = xy
     bbox = draw.textbbox((0, 0), text, font=F_SMALL)
     w = bbox[2] - bbox[0]
@@ -88,18 +109,39 @@ def draw_label(draw, xy, text, fill=(255, 255, 255), bg=(0, 0, 0, 170)):
 def arrow(draw, start, end, color=(35, 94, 184), width=7):
     sx, sy = start
     ex, ey = end
-    draw.line([start, end], fill=color, width=width)
     dx, dy = ex - sx, ey - sy
     length = max((dx * dx + dy * dy) ** 0.5, 1)
     ux, uy = dx / length, dy / length
     px, py = -uy, ux
-    head, wing = 28, 14
+    head, wing = 30, 15
+    base = (ex - ux * head, ey - uy * head)
+    draw.line([start, base], fill=color, width=width)
     pts = [
         (ex, ey),
-        (ex - ux * head + px * wing, ey - uy * head + py * wing),
-        (ex - ux * head - px * wing, ey - uy * head - py * wing),
+        (base[0] + px * wing, base[1] + py * wing),
+        (base[0] - px * wing, base[1] - py * wing),
     ]
     draw.polygon(pts, fill=color)
+
+
+def thin_arrow(draw, start, end, color=(65, 82, 105), width=4):
+    sx, sy = start
+    ex, ey = end
+    dx, dy = ex - sx, ey - sy
+    length = max((dx * dx + dy * dy) ** 0.5, 1)
+    ux, uy = dx / length, dy / length
+    px, py = -uy, ux
+    head, wing = 20, 10
+    base = (ex - ux * head, ey - uy * head)
+    draw.line([start, base], fill=color, width=width)
+    draw.polygon(
+        [
+            (ex, ey),
+            (base[0] + px * wing, base[1] + py * wing),
+            (base[0] - px * wing, base[1] - py * wing),
+        ],
+        fill=color,
+    )
 
 
 def block(draw, xy, wh, text, outline, fill=(255, 255, 255), fnt=F_SMALL):
@@ -109,17 +151,9 @@ def block(draw, xy, wh, text, outline, fill=(255, 255, 255), fnt=F_SMALL):
     draw_text_center(draw, x + w / 2, y + h / 2, text, fnt, fill=(20, 24, 30))
 
 
-def draw_network(draw, x, y, color):
-    # Simple deterministic encoder / actor glyphs.
-    for i in range(4):
-        h = 150 - i * 22
-        draw.rounded_rectangle(
-            [x + i * 18, y + 75 - h / 2, x + 42 + i * 18, y + 75 + h / 2],
-            radius=8,
-            fill=color,
-            outline=(40, 58, 80),
-            width=2,
-        )
+def draw_network(canvas, x, y):
+    block_img = Image.open(ASSETS / "mlp_icon_original.png")
+    paste_contain(canvas, block_img, (x, y, 118, 118))
 
 
 def build_dynamic_panel(canvas, draw, box):
@@ -145,39 +179,49 @@ def build_dynamic_panel(canvas, draw, box):
 
 def build_latent_panel(canvas, draw, box):
     x, y, w, h = box
-    pad = 22
-    left_w = 245
+    pad = 24
+    left_w = 270
     top = crop_sim_frame(FRAMES / "teacher_frame.png")
-    bottom = crop_sim_frame(FRAMES / "student_frame.png")
-    paste_rounded(canvas, top, (x + pad, y + 44, left_w, 215), radius=16)
-    paste_rounded(canvas, bottom, (x + pad, y + h - 259, left_w, 215), radius=16)
-    draw_label(draw, (x + pad + 12, y + 54), "teacher rollout", bg=(18, 52, 94, 185))
-    draw_label(draw, (x + pad + 12, y + h - 249), "depth rollout", bg=(18, 52, 94, 185))
+    bottom = Image.open(ASSETS / "depth_rollout_ai.png").convert("RGB")
+    top_box = (x + pad, y + 48, left_w, 212)
+    bot_box = (x + pad, y + h - 260, left_w, 212)
+    paste_rounded(canvas, top, top_box, radius=16)
+    paste_rounded(canvas, bottom, bot_box, radius=16)
+    draw_label(draw, (x + pad + 12, y + 58), "teacher rollout")
+    draw_label(draw, (x + pad + 12, y + h - 250), "depth rollout")
 
-    cx = x + pad + left_w + 56
-    top_y = y + 70
-    bot_y = y + h - 235
+    row_top = y + 154
+    row_bot = y + h - 154
+    mlp_x = x + pad + left_w + 58
+    mlp_w = 118
+    roa_x, roa_w, roa_h = mlp_x + 158, 170, 88
+    policy_x, policy_w, policy_h = roa_x + 220, 164, 88
+    env_w, env_h = 182, 118
 
-    draw_network(draw, cx, top_y + 76, (91, 150, 222))
-    block(draw, (cx + 115, top_y + 40), (130, 72), "ROA\nhistory", (91, 150, 222), fill=(235, 244, 255), fnt=F_SMALL)
-    block(draw, (cx + 285, top_y + 40), (128, 72), "teacher\npolicy", (220, 131, 39), fill=(255, 244, 232), fnt=F_SMALL)
+    draw_network(canvas, mlp_x, row_top - 59)
+    block(draw, (roa_x, row_top - roa_h / 2), (roa_w, roa_h), "ROA\nhistory", (91, 150, 222), fill=(235, 244, 255), fnt=F_BLOCK)
+    block(draw, (policy_x, row_top - policy_h / 2), (policy_w, policy_h), "teacher\npolicy", (220, 131, 39), fill=(255, 244, 232), fnt=F_BLOCK)
 
-    draw_network(draw, cx, bot_y + 76, (91, 150, 222))
-    block(draw, (cx + 115, bot_y + 30), (130, 94), "teacher-\nstudent\nenv latent", (116, 82, 190), fill=(244, 239, 255), fnt=F_SMALL)
-    block(draw, (cx + 285, bot_y + 40), (128, 72), "student\npolicy", (220, 131, 39), fill=(255, 244, 232), fnt=F_SMALL)
+    draw_network(canvas, mlp_x, row_bot - 59)
+    block(draw, (roa_x - 6, row_bot - env_h / 2), (env_w, env_h), "teacher-\nstudent\nenv latent", (116, 82, 190), fill=(244, 239, 255), fnt=F_BLOCK)
+    block(draw, (policy_x, row_bot - policy_h / 2), (policy_w, policy_h), "student\npolicy", (220, 131, 39), fill=(255, 244, 232), fnt=F_BLOCK)
 
-    arrow(draw, (x + pad + left_w + 8, y + 150), (cx - 12, y + 150), color=(70, 92, 120), width=5)
-    arrow(draw, (cx + 78, y + 150), (cx + 112, y + 150), color=(70, 92, 120), width=5)
-    arrow(draw, (cx + 248, y + 150), (cx + 280, y + 150), color=(70, 92, 120), width=5)
-    arrow(draw, (x + pad + left_w + 8, y + h - 150), (cx - 12, y + h - 150), color=(70, 92, 120), width=5)
-    arrow(draw, (cx + 78, y + h - 150), (cx + 112, y + h - 150), color=(70, 92, 120), width=5)
-    arrow(draw, (cx + 248, y + h - 150), (cx + 280, y + h - 150), color=(70, 92, 120), width=5)
+    # Clean horizontal arrows between components.
+    frame_right = x + pad + left_w
+    thin_arrow(draw, (frame_right + 14, row_top), (mlp_x - 12, row_top))
+    thin_arrow(draw, (mlp_x + mlp_w + 12, row_top), (roa_x - 12, row_top))
+    thin_arrow(draw, (roa_x + roa_w + 12, row_top), (policy_x - 12, row_top))
+    thin_arrow(draw, (frame_right + 14, row_bot), (mlp_x - 12, row_bot))
+    thin_arrow(draw, (mlp_x + mlp_w + 12, row_bot), (roa_x - 18, row_bot))
+    thin_arrow(draw, (roa_x - 6 + env_w + 12, row_bot), (policy_x - 12, row_bot))
 
-    # Supervision and shared recovered latent path.
-    arrow(draw, (cx + 350, y + 190), (cx + 350, y + h - 190), color=(220, 131, 39), width=5)
-    draw_text_center(draw, cx + 430, y + h / 2, "action\nsupervision", F_SMALL, fill=(108, 62, 16))
-    arrow(draw, (cx + 180, y + 230), (cx + 180, y + h - 215), color=(116, 82, 190), width=5)
-    draw_text_center(draw, cx + 160, y + h / 2, "recovered\nenv latent", F_SMALL, fill=(80, 49, 150))
+    # Vertical supervision paths; labels are placed consistently to the left.
+    latent_x = roa_x + roa_w / 2
+    action_x = policy_x + policy_w / 2
+    arrow(draw, (latent_x, row_top + roa_h / 2 + 26), (latent_x, row_bot - env_h / 2 - 16), color=(116, 82, 190), width=5)
+    draw_text_center(draw, latent_x - 72, (row_top + row_bot) / 2, "recovered\nenv latent", F_SMALL, fill=(80, 49, 150))
+    arrow(draw, (action_x, row_top + policy_h / 2 + 26), (action_x, row_bot - policy_h / 2 - 16), color=(220, 131, 39), width=5)
+    draw_text_center(draw, action_x - 82, (row_top + row_bot) / 2, "action\nsupervision", F_SMALL, fill=(108, 62, 16))
 
 
 def main():
@@ -185,9 +229,9 @@ def main():
     draw = ImageDraw.Draw(canvas)
 
     panels = [
-        (70, PANEL_Y, 620, PANEL_H),
-        (820, PANEL_Y, 620, PANEL_H),
-        (1570, PANEL_Y, 760, PANEL_H),
+        (60, PANEL_Y, 590, PANEL_H),
+        (870, PANEL_Y, 590, PANEL_H),
+        (1680, PANEL_Y, 960, PANEL_H),
     ]
     titles = [
         "1  Static expert",
@@ -206,10 +250,10 @@ def main():
     build_latent_panel(canvas, draw, panels[2])
 
     # Arrows live in the whitespace between rounded frames.
-    arrow(draw, (710, PANEL_Y + PANEL_H / 2), (800, PANEL_Y + PANEL_H / 2), color=(45, 96, 180), width=8)
-    draw_text_center(draw, 755, PANEL_Y + PANEL_H / 2 - 58, "DAgger\nimitation", F_ARROW, fill=(45, 96, 180))
-    arrow(draw, (1460, PANEL_Y + PANEL_H / 2), (1550, PANEL_Y + PANEL_H / 2), color=(37, 138, 71), width=8)
-    draw_text_center(draw, 1505, PANEL_Y + PANEL_H / 2 - 58, "Camera\ndistillation", F_ARROW, fill=(37, 138, 71))
+    arrow(draw, (690, PANEL_Y + PANEL_H / 2), (830, PANEL_Y + PANEL_H / 2), color=(45, 96, 180), width=8)
+    draw_text_center(draw, 760, PANEL_Y + PANEL_H / 2 - 58, "DAgger\nimitation", F_ARROW, fill=(45, 96, 180))
+    arrow(draw, (1500, PANEL_Y + PANEL_H / 2), (1640, PANEL_Y + PANEL_H / 2), color=(37, 138, 71), width=8)
+    draw_text_center(draw, 1570, PANEL_Y + PANEL_H / 2 - 58, "Camera\ndistillation", F_ARROW, fill=(37, 138, 71))
 
     canvas.convert("RGB").save(OUT, quality=96)
 

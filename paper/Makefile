@@ -60,13 +60,14 @@ figures/depth_loss_distill_comparison.pdf: figures/plot_depth_loss_distill_compa
 	$(PYTHON) figures/plot_depth_loss_distill_comparison.py
 
 figures/training_pipeline_ai.png: figures/build_training_pipeline.py \
+	figures/training_pipeline_assets/mlp_icon_original.png \
+	figures/training_pipeline_assets/depth_rollout_ai.png \
 	figures/training_pipeline_frames/static_demo.png \
 	figures/training_pipeline_frames/dynamic_hurdle.png \
 	figures/training_pipeline_frames/dynamic_gap.png \
 	figures/training_pipeline_frames/dynamic_tilted_pad.png \
 	figures/training_pipeline_frames/dynamic_step.png \
-	figures/training_pipeline_frames/teacher_frame.png \
-	figures/training_pipeline_frames/student_frame.png
+	figures/training_pipeline_frames/teacher_frame.png
 	$(PYTHON) figures/build_training_pipeline.py
 
 clean:
