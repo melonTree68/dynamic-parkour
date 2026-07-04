@@ -60,7 +60,7 @@ Figure~\ref{fig:pipeline} summarizes our improved training pipeline. The system 
    % TODO(image-gen): Pipeline figure uses verified demo frames, an AI-generated depth-view rollout matched to the demo viewpoint, the original-paper MLP glyph, and deterministic labels/arrows from figures/build_training_pipeline.py.
    \includegraphics[width=0.98\textwidth]{training_pipeline_ai.png}
    \vspace{-2.5em}
-   \caption{Training pipeline overview. A static parkour expert provides imitation targets for dynamic-terrain pretraining, the privileged dynamic policy is fine-tuned with obstacle-state latents, and the deployable depth student uses hybrid recovery to keep useful dynamic state while suppressing harmful latent labels.}
+   \caption{Training pipeline overview. A static parkour expert provides imitation targets for dynamic-terrain pretraining, the privileged dynamic policy is fine-tuned with obstacle-state latents, and the deployable depth student uses hybrid recovery to keep useful dynamic obstacle state while suppressing harmful latent labels.}
    \label{fig:pipeline}
 \end{figure*}
 
@@ -90,7 +90,7 @@ On top of the original static height scan, the dynamic environment additionally 
 The dynamic task exposes a unified configuration interface for the main obstacle families. Hurdles vary in height, thickness, translation amplitude, and period. Gaps vary in gap width, platform dimensions, translation amplitude, and period. Tilted pads vary in lateral placement, roll amplitude, and period. Steps vary in mean height range, vertical amplitude, and period. Curriculum difficulty interpolates these ranges before uniform sampling.
 
 \subsection{DAgger-Style Imitation Pretraining}
-Training dynamic parkour from scratch is difficult because early failures prevent the policy from reaching informative states. We therefore insert an imitation stage between the static expert and dynamic base reinforcement learning. The expert is a static-terrain A1 policy; the student is the dynamic policy that will later be fine-tuned with PPO.
+Training dynamic parkour from scratch is difficult because early failures prevent the policy from reaching informative states. We therefore add an imitation pretraining stage before dynamic base reinforcement learning. The expert is a static-terrain A1 policy.
 
 \begin{algorithm}[htb]
    \small
@@ -120,27 +120,40 @@ The imitation objective trains both the privileged actor path and the history-en
 \subsection{Dynamic Environment Latent Augmentation}
 The core augmentation is a low-dimensional dynamic obstacle state appended after the original privileged latent slice. For \texttt{a1\_dynamic}, this vector has 30 dimensions: two upcoming obstacle groups, each represented by 15 features. Static \texttt{a1} keeps this dimension at zero.
 
-Each group contains validity and type bits, relative geometry, motion state, and motion parameters. The features are:
-\[\begin{split}
-&\text{valid},\ \text{hurdle},\ \text{gap},\ \text{step},\ \text{tilted pad},\\
-&x_0,\ x_1,\ y,\ v_{\mathrm{primary}},\ \dot{v}_{\mathrm{primary}},\ \ddot{v}_{\mathrm{primary}},\\
-&\sin \phi,\ \cos \phi,\ A,\ \omega .
-\end{split}\]
-The primary value is family-specific: hurdle top height, effective gap width, step top height, or tilted-pad roll angle. The representation is intentionally redundant: it includes type, geometry, phase, derivatives, amplitude, and frequency rather than only a minimal physical state. This makes it easier to analyze recovery behavior, but it also creates the risk that explicit labels distract from robust behavior when the state is not useful.
+Each group contains validity and type bits, relative geometry, motion state, and motion parameters. Table~\ref{tab:dynamic_latent_features} summarizes the per-group feature layout.
+\begin{table*}[htb]
+   \caption{Per-group dynamic latent features.}
+   \label{tab:dynamic_latent_features}
+   \centering
+   \begin{tabular}{lll}
+      \toprule
+      Category & Variable & Meaning \\
+      \midrule
+      Validity & \(\mathbf 1_{\mathrm{valid}}\) & whether this upcoming obstacle group is valid \\
+      Type bits & \(\mathbf 1_{\mathrm{hurdle}}, \mathbf 1_{\mathrm{gap}}, \mathbf 1_{\mathrm{step}}, \mathbf 1_{\mathrm{pad}}\) & one-hot indicators for hurdle, gap, step, and tilted pad \\
+      Relative geometry & \(x_0, x_1\) & robot-relative forward positions of slot 0 and slot 1 \\
+       & \(y\) & robot-relative lateral offset of the obstacle group \\
+      Primary state & \(v_{\mathrm{primary}}, \dot{v}_{\mathrm{primary}}, \ddot{v}_{\mathrm{primary}}\) & family-specific scalar state and its time derivatives \\
+      Motion phase & \(\sin\varphi, \cos\varphi\) & current phase of the scripted motion \\
+      Motion parameters & \(A, \omega\) & sampled amplitude and angular frequency \\
+      \bottomrule
+   \end{tabular}
+\end{table*}
+The primary value \(v_{\mathrm{primary}}\) is family-specific: hurdle top height, effective gap width, step top height, or tilted-pad roll angle. The representation is intentionally redundant: a compact low-dimensional signal may otherwise be too weak to affect policy decisions, but extra state can distract from robust behavior when it is not useful.
 
-Recovery mode is configured per obstacle family. In ROA-style recovery, the history encoder predicts dynamic state during base RL and the policy later consumes the recovered history latent. In teacher-student recovery, the depth encoder predicts the dynamic state during camera distillation. A hybrid configuration can assign different families to different recovery paths.
+Recovery mode is configured per obstacle family. In ROA-style recovery, the history encoder predicts obstacle state during base RL and the policy later consumes the recovered history latent. In teacher-student recovery, the depth encoder predicts obstacle state during camera distillation. A hybrid configuration can assign different obstacle families to different recovery paths.
 
 \subsection{Mixed Terrain and Latent Suppression}
-The per-family ablations showed that not all dynamic state should be exposed. Gap state is strongly tied to visual timing: the robot benefits from knowing where the moving takeoff and landing supports are. Tilted-pad state was a negative improvement in both ROA-style and teacher-student experiments. Hurdle state was also not consistently useful; the dominant difficulty appeared to be robustness to contact and collision artifacts rather than precise phase recovery.
+The per-family ablations showed that not all dynamic obstacle state should be exposed. Gap state is strongly tied to visual timing: the robot benefits from knowing where the moving takeoff and landing supports are. Tilted-pad state was a negative improvement in both ROA-style and teacher-student experiments. Hurdle state was also not consistently helpful; the dominant difficulty appeared to be robustness to contact and collision artifacts rather than precise phase recovery.
 
-The final \texttt{a1\_\allowbreak mixed} task keeps the dynamic infrastructure but changes the terrain mixture and latent mask. It uses \texttt{mixed\_\allowbreak hurdle}, \texttt{dynamic\_\allowbreak gap}, \texttt{mixed\_\allowbreak tilted\_\allowbreak pads}, \texttt{parkour\_\allowbreak step}, and \texttt{mixed\_\allowbreak demo}. The mixed hurdle and mixed tilted-pad courses retain the same visible moving actors as their dynamic counterparts, but suppress dynamic state features. The gap family keeps dynamic latent recovery. The dynamic step is replaced by the static parkour step because the current dynamic step actor generated poor learning signals and frequent collision-induced failures.
+The final \texttt{a1\_\allowbreak mixed} task keeps the dynamic infrastructure but changes the terrain mixture and latent mask. It uses \texttt{mixed\_\allowbreak hurdle}, \texttt{dynamic\_\allowbreak gap}, \texttt{mixed\_\allowbreak tilted\_\allowbreak pads}, \texttt{parkour\_\allowbreak step}, and \texttt{mixed\_\allowbreak demo}. The \texttt{mixed\_\allowbreak hurdle} and \texttt{mixed\_\allowbreak tilted\_\allowbreak pads} courses retain the same visible moving actors as their dynamic counterparts, but suppress obstacle state features. The gap family keeps dynamic latent recovery. \texttt{dynamic\_\allowbreak step} is replaced by the static \texttt{parkour\_\allowbreak step} because the current dynamic step actor generated poor learning signals and frequent collision-induced failures.
 
 \subsection{Depth Encoder Scan-Latent Loss}
-The final extension adds an optional scan-latent matching loss during camera distillation:
+We add an optional scan-latent matching loss during camera distillation:
 \[L_{\mathrm{scan}}=\left\|z_{\mathrm{scan}}-z_{\mathrm{depth}}\right\|_2.\]
 When enabled, it is added to the existing depth actor update:
-\[L=L_{\mathrm{action}}+L_{\mathrm{yaw}}+w_{\mathrm{dyn}}L_{\mathrm{dyn}}+L_{\mathrm{scan}}.\]
-The loss is integrated into the same backward pass as the depth actor losses, so the depth actor and depth encoder are updated consistently. This was intended to stabilize the depth latent that replaces privileged scan information. As shown in the experiments, it did not produce a substantial final improvement.
+\[L=L_{\mathrm{action}}+L_{\mathrm{yaw}}+w_{\mathrm{dynamic}}L_{\mathrm{dynamic}}+L_{\mathrm{scan}}.\]
+The loss was intended to stabilize the depth latent that replaces privileged scan information. As shown in the experiments, it did not produce a substantial improvement in mean waypoints.
 
 \section{Experiments}
 \subsection{Setup and Metrics}
