@@ -32,6 +32,8 @@ Use this skill for the final paper under `paper/`. Read `paper/AGENTS.md` and `p
   - hybrid mixed terrain: red
   - hybrid with depth encoder loss: teal
 - For AI-generated diagrams, keep embedded text minimal and explain labels in LaTeX captions or manual post-processing. Leave a nearby `% TODO(image-gen): ...` comment documenting the intended image.
+- For the final training-pipeline figure, regenerate `figures/training_pipeline_ai.png` with `figures/build_training_pipeline.py` from verified demo frames under `figures/training_pipeline_frames/`. Keep stage titles outside the three rounded image frames, place arrows and transition labels in the whitespace between frames, and draw semantic pipeline labels deterministically rather than through image generation.
+- When modifying the training-pipeline figure, verify dynamic obstacle appearance against `paper/demo` frames and `legged_gym/legged_gym/utils/terrain.py`: hurdles are moving cuboid blocks, gaps are carved pits with two moving platforms, tilted pads are rolling slabs over pits, and dynamic steps are box-height actors. Reject polished CAD-style tracks, rails/posts, wooden boards, and generic obstacle-course imagery.
 
 ## Narrative Decisions
 

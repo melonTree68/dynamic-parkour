@@ -13,7 +13,7 @@ FIGURES=\
 	figures/recovery_mode_training_curves.pdf \
 	figures/depth_loss_distill_comparison.pdf \
 	figures/curriculum_tiles_labeled.png \
-	figures/training_pipeline_ai.png
+figures/training_pipeline_ai.png
 
 all: paper_template.pdf
 
@@ -58,6 +58,16 @@ figures/depth_loss_base_comparison.pdf: figures/plot_depth_loss_base_comparison.
 
 figures/depth_loss_distill_comparison.pdf: figures/plot_depth_loss_distill_comparison.py figures/plot_utils.py
 	$(PYTHON) figures/plot_depth_loss_distill_comparison.py
+
+figures/training_pipeline_ai.png: figures/build_training_pipeline.py \
+	figures/training_pipeline_frames/static_demo.png \
+	figures/training_pipeline_frames/dynamic_hurdle.png \
+	figures/training_pipeline_frames/dynamic_gap.png \
+	figures/training_pipeline_frames/dynamic_tilted_pad.png \
+	figures/training_pipeline_frames/dynamic_step.png \
+	figures/training_pipeline_frames/teacher_frame.png \
+	figures/training_pipeline_frames/student_frame.png
+	$(PYTHON) figures/build_training_pipeline.py
 
 clean:
 	rm -f paper_template.aux paper_template.bbl paper_template.blg paper_template.log paper_template.out paper_template.synctex.gz
