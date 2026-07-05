@@ -87,16 +87,30 @@ def paste_contain(canvas, img, box):
     canvas.paste(src, (px, py), src)
 
 
-def draw_text_center(draw: ImageDraw.ImageDraw, x, y, text, fnt, fill=(25, 28, 33), y_offset: float=0):
+def draw_text_center(
+    draw: ImageDraw.ImageDraw, x, y, text, fnt, fill=(25, 28, 33), y_offset: float = 0
+):
     bbox = draw.multiline_textbbox((0, 0), text, font=fnt, spacing=5, align="center")
     w = bbox[2] - bbox[0]
     h = bbox[3] - bbox[1]
     draw.multiline_text(
-        (x - w / 2, y - h / 2 - y_offset * h), text, font=fnt, fill=fill, spacing=5, align="center"
+        (x - w / 2, y - h / 2 - y_offset * h),
+        text,
+        font=fnt,
+        fill=fill,
+        spacing=5,
+        align="center",
     )
 
 
-def draw_label(draw: ImageDraw.ImageDraw, xy, text, fill=(255, 255, 255), bg=LABEL_BG, y_offset: float=0):
+def draw_label(
+    draw: ImageDraw.ImageDraw,
+    xy,
+    text,
+    fill=(255, 255, 255),
+    bg=LABEL_BG,
+    y_offset: float = 0,
+):
     x, y = xy
     bbox = draw.textbbox((0, 0), text, font=F_SMALL)
     w = bbox[2] - bbox[0]
@@ -148,13 +162,24 @@ def thin_arrow(draw: ImageDraw.ImageDraw, start, end, color=(65, 82, 105), width
     )
 
 
-def block(draw: ImageDraw.ImageDraw, xy, wh, text, outline, fill=(255, 255, 255), fnt=F_SMALL, y_offset: float=0):
+def block(
+    draw: ImageDraw.ImageDraw,
+    xy,
+    wh,
+    text,
+    outline,
+    fill=(255, 255, 255),
+    fnt=F_SMALL,
+    y_offset: float = 0,
+):
     x, y = xy
     w, h = wh
     draw.rounded_rectangle(
         [x, y, x + w, y + h], radius=14, fill=fill, outline=outline, width=3
     )
-    draw_text_center(draw, x + w / 2, y + h / 2, text, fnt, fill=(20, 24, 30), y_offset=y_offset)
+    draw_text_center(
+        draw, x + w / 2, y + h / 2, text, fnt, fill=(20, 24, 30), y_offset=y_offset
+    )
 
 
 def draw_network(canvas, x, y):
