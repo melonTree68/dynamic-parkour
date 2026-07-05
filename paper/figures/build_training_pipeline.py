@@ -8,7 +8,7 @@ FRAMES = HERE / "training_pipeline_frames"
 ASSETS = HERE / "training_pipeline_assets"
 OUT = HERE / "training_pipeline_ai.png"
 
-W, H = 2700, 920
+W, H = 2750, 920
 PANEL_Y = 145
 PANEL_H = 610
 RADIUS = 28
@@ -33,7 +33,8 @@ F_TITLE = font(44, bold=True)
 F_ARROW = font(30, bold=True)
 F_LABEL = font(24, bold=True)
 F_SMALL = font(21, bold=False)
-F_BLOCK = font(25, bold=False)
+F_BLOCK = font(29, bold=False)
+F_PATH = font(24, bold=False)
 
 
 def crop_sim_frame(path):
@@ -153,7 +154,7 @@ def block(draw, xy, wh, text, outline, fill=(255, 255, 255), fnt=F_SMALL):
 
 def draw_network(canvas, x, y):
     block_img = Image.open(ASSETS / "mlp_icon_original.png")
-    paste_contain(canvas, block_img, (x, y, 118, 118))
+    paste_contain(canvas, block_img, (x, y, 104, 104))
 
 
 def build_dynamic_panel(canvas, draw, box):
@@ -180,7 +181,7 @@ def build_dynamic_panel(canvas, draw, box):
 def build_latent_panel(canvas, draw, box):
     x, y, w, h = box
     pad = 24
-    left_w = 270
+    left_w = 250
     top = crop_sim_frame(FRAMES / "teacher_frame.png")
     bottom = Image.open(ASSETS / "depth_rollout_ai.png").convert("RGB")
     top_box = (x + pad, y + 48, left_w, 212)
@@ -192,36 +193,36 @@ def build_latent_panel(canvas, draw, box):
 
     row_top = y + 154
     row_bot = y + h - 154
-    mlp_x = x + pad + left_w + 58
-    mlp_w = 118
-    roa_x, roa_w, roa_h = mlp_x + 158, 170, 88
-    policy_x, policy_w, policy_h = roa_x + 220, 164, 88
-    env_w, env_h = 182, 118
+    mlp_x = x + pad + left_w + 100
+    mlp_w = 104
+    roa_x, roa_w, roa_h = mlp_x + 186, 190, 94
+    policy_x, policy_w, policy_h = roa_x + 278, 162, 94
+    env_w, env_h = 205, 126
 
-    draw_network(canvas, mlp_x, row_top - 59)
+    draw_network(canvas, mlp_x, row_top - 52)
     block(draw, (roa_x, row_top - roa_h / 2), (roa_w, roa_h), "ROA\nhistory", (91, 150, 222), fill=(235, 244, 255), fnt=F_BLOCK)
     block(draw, (policy_x, row_top - policy_h / 2), (policy_w, policy_h), "teacher\npolicy", (220, 131, 39), fill=(255, 244, 232), fnt=F_BLOCK)
 
-    draw_network(canvas, mlp_x, row_bot - 59)
+    draw_network(canvas, mlp_x, row_bot - 52)
     block(draw, (roa_x - 6, row_bot - env_h / 2), (env_w, env_h), "teacher-\nstudent\nenv latent", (116, 82, 190), fill=(244, 239, 255), fnt=F_BLOCK)
     block(draw, (policy_x, row_bot - policy_h / 2), (policy_w, policy_h), "student\npolicy", (220, 131, 39), fill=(255, 244, 232), fnt=F_BLOCK)
 
     # Clean horizontal arrows between components.
     frame_right = x + pad + left_w
-    thin_arrow(draw, (frame_right + 14, row_top), (mlp_x - 12, row_top))
-    thin_arrow(draw, (mlp_x + mlp_w + 12, row_top), (roa_x - 12, row_top))
-    thin_arrow(draw, (roa_x + roa_w + 12, row_top), (policy_x - 12, row_top))
-    thin_arrow(draw, (frame_right + 14, row_bot), (mlp_x - 12, row_bot))
-    thin_arrow(draw, (mlp_x + mlp_w + 12, row_bot), (roa_x - 18, row_bot))
-    thin_arrow(draw, (roa_x - 6 + env_w + 12, row_bot), (policy_x - 12, row_bot))
+    thin_arrow(draw, (frame_right + 18, row_top), (mlp_x - 18, row_top))
+    thin_arrow(draw, (mlp_x + mlp_w + 18, row_top), (roa_x - 18, row_top))
+    thin_arrow(draw, (roa_x + roa_w + 18, row_top), (policy_x - 18, row_top))
+    thin_arrow(draw, (frame_right + 18, row_bot), (mlp_x - 18, row_bot))
+    thin_arrow(draw, (mlp_x + mlp_w + 18, row_bot), (roa_x - 24, row_bot))
+    thin_arrow(draw, (roa_x - 6 + env_w + 18, row_bot), (policy_x - 18, row_bot))
 
     # Vertical supervision paths; labels are placed consistently to the left.
     latent_x = roa_x + roa_w / 2
     action_x = policy_x + policy_w / 2
-    arrow(draw, (latent_x, row_top + roa_h / 2 + 26), (latent_x, row_bot - env_h / 2 - 16), color=(116, 82, 190), width=5)
-    draw_text_center(draw, latent_x - 72, (row_top + row_bot) / 2, "recovered\nenv latent", F_SMALL, fill=(80, 49, 150))
-    arrow(draw, (action_x, row_top + policy_h / 2 + 26), (action_x, row_bot - policy_h / 2 - 16), color=(220, 131, 39), width=5)
-    draw_text_center(draw, action_x - 82, (row_top + row_bot) / 2, "action\nsupervision", F_SMALL, fill=(108, 62, 16))
+    arrow(draw, (latent_x, row_top + roa_h / 2 + 26), (latent_x, row_bot - env_h / 2 - 16), color=(116, 82, 190), width=6)
+    draw_text_center(draw, latent_x - 96, (row_top + row_bot) / 2, "recovered\nenv latent", F_PATH, fill=(80, 49, 150))
+    arrow(draw, (action_x, row_top + policy_h / 2 + 26), (action_x, row_bot - policy_h / 2 - 16), color=(220, 131, 39), width=6)
+    draw_text_center(draw, action_x - 98, (row_top + row_bot) / 2, "action\nsupervision", F_PATH, fill=(108, 62, 16))
 
 
 def main():
@@ -231,7 +232,7 @@ def main():
     panels = [
         (60, PANEL_Y, 590, PANEL_H),
         (870, PANEL_Y, 590, PANEL_H),
-        (1680, PANEL_Y, 960, PANEL_H),
+        (1650, PANEL_Y, 1050, PANEL_H),
     ]
     titles = [
         "1  Static expert",
@@ -252,8 +253,8 @@ def main():
     # Arrows live in the whitespace between rounded frames.
     arrow(draw, (690, PANEL_Y + PANEL_H / 2), (830, PANEL_Y + PANEL_H / 2), color=(45, 96, 180), width=8)
     draw_text_center(draw, 760, PANEL_Y + PANEL_H / 2 - 58, "DAgger\nimitation", F_ARROW, fill=(45, 96, 180))
-    arrow(draw, (1500, PANEL_Y + PANEL_H / 2), (1640, PANEL_Y + PANEL_H / 2), color=(37, 138, 71), width=8)
-    draw_text_center(draw, 1570, PANEL_Y + PANEL_H / 2 - 58, "Camera\ndistillation", F_ARROW, fill=(37, 138, 71))
+    arrow(draw, (1500, PANEL_Y + PANEL_H / 2), (1610, PANEL_Y + PANEL_H / 2), color=(37, 138, 71), width=8)
+    draw_text_center(draw, 1555, PANEL_Y + PANEL_H / 2 - 58, "Camera\ndistillation", F_ARROW, fill=(37, 138, 71))
 
     canvas.convert("RGB").save(OUT, quality=96)
 
