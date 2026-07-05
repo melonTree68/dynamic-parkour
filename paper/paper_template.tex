@@ -67,12 +67,12 @@ Figure~\ref{fig:pipeline} summarizes our improved training pipeline. The system 
 \subsection{Baseline Static Parkour Pipeline}
 The baseline task uses a curriculum grid of terrain tiles. Rows control difficulty, columns select terrain families, and each tile contains eight navigation goals. The policy is rewarded for progress toward the current goal and heading alignment, while penalties discourage collisions, unstable posture, torque spikes, and foot placement near terrain edges. Height scans provide privileged exteroception during base training, and depth images replace this scan information during camera distillation.
 
-\begin{figure}[htbp]
-	\centering
-	\includegraphics[width=\linewidth]{curriculum_tiles_labeled.png}
-	\caption{Curriculum structure: columns select obstacle families, while rows control difficulty.}
-	\label{fig:curriculum}
-\end{figure}
+% \begin{figure}[htbp]
+% 	\centering
+% 	\includegraphics[width=\linewidth]{curriculum_tiles_labeled.png}
+% 	\caption{Curriculum structure: columns select obstacle families, while rows control difficulty.}
+% 	\label{fig:curriculum}
+% \end{figure}
 
 The baseline training stack has two latent recovery paths. First, during base reinforcement learning, a history encoder learns to match privileged latent variables from recent proprioceptive observations. Second, during camera distillation, a depth encoder predicts scan-derived latent information and yaw correction so that the deployment policy can act without privileged terrain scans. Dynamic parkour stresses both mechanisms because obstacle state may be visible before contact, only inferable after contact, or not useful at all.
 
@@ -197,7 +197,7 @@ Environment latent recovery was evaluated by obstacle family. Figure~\ref{fig:re
 \end{figure*}
 
 \subsection{Depth Encoder Loss}
-The depth encoder scan-latent loss was tested on top of HELA. Figure~\ref{fig:depth_loss} compares distillation with and without this loss. The added supervision reaches a strong best checkpoint, but it does not clearly improve the final outcome over the same hybrid run without the extra loss. The likely reason is that action imitation and dynamic-state supervision already provide strong gradients for the depth pathway, while scan-latent matching may over-constrain an intermediate representation that only needs to be behaviorally useful.
+The depth encoder scan-latent loss was tested on top of HELA. Figure~\ref{fig:depth_loss} compares camera distillation with and without this loss. The added supervision does not clearly improve mean waypoints over the same HELA run without the extra loss.
 
 \begin{figure}[htbp]
 	\centering
@@ -232,7 +232,7 @@ The per-family recovery results explain the HELA design. Gap traversal benefits 
 
 The second lesson is that initialization matters. Dynamic parkour is sparse and contact-rich; without a reasonable behavior prior, the policy often fails before it reaches informative obstacle interactions. DAgger-style pretraining from a static expert does not solve the dynamic task by itself, but it gives a useful starting distribution for later reinforcement learning and latent recovery.
 
-Finally, the depth encoder loss result is a negative result worth reporting. Directly matching the scan latent is intuitively appealing, but the final policy does not need to reconstruct the teacher's internal scan representation exactly. It needs a latent that supports good actions. The extra loss may help early stability or representation interpretability, but in these runs it did not improve the best final waypoint result.
+Finally, the depth encoder loss result is a negative result worth reporting. Direct scan-latent matching is intuitively appealing because it gives the depth pathway an additional supervised target, but action imitation and dynamic-state supervision already provide strong gradients for the representation needed by HELA. The final policy also needs a behaviorally useful latent rather than an exact reconstruction of the teacher's internal scan representation, so the added loss may over-constrain the intermediate representation. It may still help early stability or interpretability, but in these runs it did not improve the best final waypoint result.
 
 \section{Conclusion}
 This project extends static A1 parkour to dynamic-obstacle parkour and evaluates how the original privileged-to-depth pipeline can be adapted. The implemented dynamic task provides moving obstacle actors, dynamic height scans, moving goals, and a configurable family-level interface. The improved training pipeline combines DAgger-style static-expert pretraining, dynamic environment latent augmentation, family-specific recovery, mixed-terrain latent suppression, and an optional depth encoder loss.
