@@ -187,7 +187,7 @@ DAgger-style pretraining improved dynamic learning by placing the policy near a 
 
 \subsection{ELA, Latent Recovery, and HELA}
 
-Environment latent recovery was evaluated by obstacle family. Figure~\ref{fig:recovery_modes} compares no ELA, pure ROA-style recovery, pure teacher-student recovery, and hybrid recovery (HELA). The result is not uniform across obstacle families. Gap traversal benefits most from the teacher-student path, consistent with the need to observe moving support surfaces before contact. Explicit recovery is harmful for hurdles and tilted pads, motivating the latent suppression design in \texttt{a1\_mixed} terrain.
+Environment latent recovery was evaluated by obstacle family. Figure~\ref{fig:recovery_modes} compares no-ELA, pure ROA-style recovery, pure teacher-student recovery, and the resulting HELA configuration. These per-family ablations determine the HELA design: gap uses teacher-student recovery, hurdle and tilted-pad variants suppress dynamic latent labels, and dynamic step is replaced by the static \texttt{parkour\_\allowbreak step}.
 
 \begin{figure*}[htbp]
 	\centering
@@ -228,7 +228,7 @@ Table~\ref{tab:final_results} summarizes the best checkpoints in the available e
 	\end{tabular}
 \end{table}
 
-The main lesson is that dynamic obstacle state is useful, but not as a single uniformly supervised latent. Gap timing is a natural fit for visual teacher-student recovery. Hurdle and tilted-pad results show the opposite: adding explicit dynamic labels can distract the learner when the best behavior is robust contact handling or geometric simplification rather than precise state recovery. The mixed task encodes this empirical result by preserving dynamic actors while suppressing unhelpful latent features.
+The per-family recovery results explain the HELA design. Gap traversal benefits most from teacher-student recovery because takeoff timing and landing recovery require visual information about moving support surfaces. Hurdle performance is strongest without ELA: hurdle motion is small, and collision artifacts dominate the failure mode. Tilted-pad augmentation hurts because the robot can aim for the rotation axis, making roll angle less useful and turning explicit state into a training distraction. Dynamic step is unusable in the current setup because step-actor collisions push the robot back strongly and prevent reward collection. HELA therefore routes gap state through teacher-student recovery, suppresses hurdle and tilted-pad dynamic labels, and replaces dynamic step with static \texttt{parkour\_\allowbreak step}.
 
 The second lesson is that initialization matters. Dynamic parkour is sparse and contact-rich; without a reasonable behavior prior, the policy often fails before it reaches informative obstacle interactions. DAgger-style pretraining from a static expert does not solve the dynamic task by itself, but it gives a useful starting distribution for later reinforcement learning and latent recovery.
 
