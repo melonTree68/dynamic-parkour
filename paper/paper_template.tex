@@ -150,9 +150,9 @@ The final \texttt{a1\_\allowbreak mixed} task keeps the dynamic infrastructure b
 
 \subsection{Depth Encoder Scan-Latent Loss}
 We add an optional scan-latent matching loss during camera distillation:
-\[L_{\mathrm{scan}}=\left\|z_{\mathrm{scan}}-z_{\mathrm{depth}}\right\|_2.\]
+\[\mathcal L_{\mathrm{scan}}=\left\|z_{\mathrm{scan}}-z_{\mathrm{depth}}\right\|_2.\]
 When enabled, it is added to the existing depth actor update:
-\[L=L_{\mathrm{action}}+L_{\mathrm{yaw}}+w_{\mathrm{dynamic}}L_{\mathrm{dynamic}}+L_{\mathrm{scan}}.\]
+\[\mathcal L=\mathcal L_{\mathrm{action}}+\mathcal L_{\mathrm{yaw}}+w_{\mathrm{dynamic}}\mathcal L_{\mathrm{dynamic}}+\mathcal L_{\mathrm{scan}}.\]
 The loss was intended to stabilize the depth latent that replaces privileged scan information. As shown in the experiments, it did not produce a substantial improvement in mean waypoints.
 
 \section{Experiments}
@@ -207,12 +207,13 @@ The depth encoder scan-latent loss was tested on top of HELA. Figure~\ref{fig:de
 \end{figure}
 
 \section{Results and Discussion}
-Table~\ref{tab:final_results} summarizes the best checkpoints in the available evaluation logs. The original static deployment policy reaches \(0.936\) mean waypoints. Applying the original pipeline directly to dynamic terrain drops to \(0.230\). The final hybrid mixed-terrain pipeline recovers to \(0.808\), substantially narrowing the gap to the static deployment reference. Adding the depth encoder loss reaches \(0.748\), which is strong but not a meaningful improvement over the hybrid baseline.
+\subsection{Deployment Performance Comparison}
+Table~\ref{tab:pipeline_comparison} summarizes the deployment-stage performance of all pipelines. The baseline static policy reaches \(0.936\) mean waypoints. Applying the original pipeline directly to dynamic terrain drops to \(0.230\). Our improved HELA pipeline recovers to \(0.808\), substantially reducing the gap to static-terrain performance. Adding the depth encoder loss reaches \(0.748\), which is not a meaningful improvement over HELA.
 
 \begin{table}[htb]
 	\centering
-	\caption{Deployment-stage comparison of all pipelines. HELA recovers much of the baseline's degradation, while the added depth encoder loss does not improve upon HELA.}
-	\label{tab:final_results}
+	\caption{Deployment-stage comparison of all pipelines.}
+	\label{tab:pipeline_comparison}
 	\begin{tabular}{llcc}
 		\toprule
 		Pipeline & Terrain & Waypoints & Reward \\
@@ -228,11 +229,15 @@ Table~\ref{tab:final_results} summarizes the best checkpoints in the available e
 	\end{tabular}
 \end{table}
 
-The per-family recovery results explain the HELA design. Gap traversal benefits most from teacher-student recovery because takeoff timing and landing recovery require visual information about moving support surfaces. Hurdle performance is strongest without ELA: hurdle motion is small, and collision artifacts dominate the failure mode. Tilted-pad augmentation hurts because the robot can aim for the rotation axis, making roll angle less useful and turning explicit state into a training distraction. Dynamic step is unusable in the current setup because step-actor collisions push the robot back strongly and prevent reward collection. HELA therefore routes gap state through teacher-student recovery, suppresses hurdle and tilted-pad dynamic labels, and replaces dynamic step with static \texttt{parkour\_\allowbreak step}.
+\subsection{Family-Specific Latent Recovery}
+The per-family recovery-mode ablation results in Figure~\ref{fig:recovery_modes} explain the HELA design. Gap traversal benefits most from teacher-student recovery because takeoff and landing timing estimation requires visual information about moving support surfaces. Hurdle performance is strongest without ELA: hurdle motion is small, and collision artifacts dominate the failure mode. Tilted-pad augmentation hurts because the robot can aim for the rotation axis, making roll angle less useful and turning explicit obstacle state into a training distraction. Dynamic step is currently unusable because step-actor collisions push the robot back strongly and prevent reward collection. HELA therefore routes gap state through teacher-student recovery, suppresses hurdle and tilted-pad dynamic labels, and replaces dynamic step with static \texttt{parkour\_\allowbreak step}.
 
-The second lesson is that initialization matters. Dynamic parkour is sparse and contact-rich; without a reasonable behavior prior, the policy often fails before it reaches informative obstacle interactions. DAgger-style pretraining from a static expert does not solve the dynamic task by itself, but it gives a useful starting distribution for later reinforcement learning and latent recovery.
+\subsection{Imitation Pretraining}
+% Add metrics to "imitation pretraining alone already brings substantial improvement over the baseline pipeline"
+As shown in Table~\ref{tab:pipeline_comparison}, imitation pretraining alone already brings substantial improvement over the baseline pipeline. This indicates that initialization matters in dynamic parkour. The task is sparse and contact-rich; without a reasonable behavior prior, the policy often fails before it reaches informative obstacle interactions. DAgger-style pretraining from a static expert gives a useful starting distribution for later reinforcement learning and latent recovery.
 
-Finally, the depth encoder loss result is a negative result worth reporting. Direct scan-latent matching is intuitively appealing because it gives the depth pathway an additional supervised target, but action imitation and dynamic-state supervision already provide strong gradients for the representation needed by HELA. The final policy also needs a behaviorally useful latent rather than an exact reconstruction of the teacher's internal scan representation, so the added loss may over-constrain the intermediate representation. It may still help early stability or interpretability, but in these runs it did not improve the best final waypoint result.
+\subsection{Depth Encoder Loss}
+As shown in Figure~\ref{fig:depth_loss}, adding depth encoder loss did not bring improvements over HELA. Direct scan-latent matching is intuitively appealing because it gives the depth pathway an additional supervised target, but action imitation and dynamic-state supervision already provide strong gradients for the representation needed by HELA. In other words, the policy does not necessarily need an exact reconstruction of the teacher's internal scan representation to obtain sufficient environmental information for parkour. Therefore, the added loss may over-constrain the intermediate representation.
 
 \section{Conclusion}
 This project extends static A1 parkour to dynamic-obstacle parkour and evaluates how the original privileged-to-depth pipeline can be adapted. The implemented dynamic task provides moving obstacle actors, dynamic height scans, moving goals, and a configurable family-level interface. The improved training pipeline combines DAgger-style static-expert pretraining, dynamic environment latent augmentation, family-specific recovery, mixed-terrain latent suppression, and an optional depth encoder loss.
