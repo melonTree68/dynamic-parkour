@@ -87,16 +87,16 @@ def paste_contain(canvas, img, box):
     canvas.paste(src, (px, py), src)
 
 
-def draw_text_center(draw: ImageDraw.ImageDraw, x, y, text, fnt, fill=(25, 28, 33)):
+def draw_text_center(draw: ImageDraw.ImageDraw, x, y, text, fnt, fill=(25, 28, 33), y_offset: float=0):
     bbox = draw.multiline_textbbox((0, 0), text, font=fnt, spacing=5, align="center")
     w = bbox[2] - bbox[0]
     h = bbox[3] - bbox[1]
     draw.multiline_text(
-        (x - w / 2, y - h / 2), text, font=fnt, fill=fill, spacing=5, align="center"
+        (x - w / 2, y - h / 2 - y_offset * h), text, font=fnt, fill=fill, spacing=5, align="center"
     )
 
 
-def draw_label(draw: ImageDraw.ImageDraw, xy, text, fill=(255, 255, 255), bg=LABEL_BG):
+def draw_label(draw: ImageDraw.ImageDraw, xy, text, fill=(255, 255, 255), bg=LABEL_BG, y_offset: float=0):
     x, y = xy
     bbox = draw.textbbox((0, 0), text, font=F_SMALL)
     w = bbox[2] - bbox[0]
@@ -107,7 +107,7 @@ def draw_label(draw: ImageDraw.ImageDraw, xy, text, fill=(255, 255, 255), bg=LAB
         radius=9,
         fill=bg,
     )
-    draw.text((x + pad_x, y + pad_y), text, font=F_SMALL, fill=fill)
+    draw.text((x + pad_x, y + pad_y - y_offset), text, font=F_SMALL, fill=fill)
 
 
 def arrow(draw: ImageDraw.ImageDraw, start, end, color=(35, 94, 184), width=7):
@@ -148,13 +148,13 @@ def thin_arrow(draw: ImageDraw.ImageDraw, start, end, color=(65, 82, 105), width
     )
 
 
-def block(draw: ImageDraw.ImageDraw, xy, wh, text, outline, fill=(255, 255, 255), fnt=F_SMALL):
+def block(draw: ImageDraw.ImageDraw, xy, wh, text, outline, fill=(255, 255, 255), fnt=F_SMALL, y_offset: float=0):
     x, y = xy
     w, h = wh
     draw.rounded_rectangle(
         [x, y, x + w, y + h], radius=14, fill=fill, outline=outline, width=3
     )
-    draw_text_center(draw, x + w / 2, y + h / 2, text, fnt, fill=(20, 24, 30))
+    draw_text_center(draw, x + w / 2, y + h / 2, text, fnt, fill=(20, 24, 30), y_offset=y_offset)
 
 
 def draw_network(canvas, x, y):
@@ -169,12 +169,12 @@ def build_dynamic_panel(canvas, draw: ImageDraw.ImageDraw, box):
     cell_w = (w - 2 * pad - gutter) // 2
     cell_h = (h - 2 * pad - gutter) // 2
     entries = [
-        ("dynamic_hurdle.png", "hurdle"),
-        ("dynamic_gap.png", "gap"),
-        ("dynamic_tilted_pad.png", "tilted pad"),
-        ("dynamic_step.png", "step"),
+        ("dynamic_hurdle.png", "hurdle", 4),
+        ("dynamic_gap.png", "gap", 5),
+        ("dynamic_tilted_pad.png", "tilted pad", 2),
+        ("dynamic_step.png", "step", 2.5),
     ]
-    for idx, (name, label) in enumerate(entries):
+    for idx, (name, label, y_offset) in enumerate(entries):
         cx = x + pad + (idx % 2) * (cell_w + gutter)
         cy = y + pad + (idx // 2) * (cell_h + gutter)
         frame = crop_sim_frame(FRAMES / name)
@@ -185,7 +185,7 @@ def build_dynamic_panel(canvas, draw: ImageDraw.ImageDraw, box):
             outline=(230, 235, 240),
             width=2,
         )
-        draw_label(draw, (cx + 12, cy + cell_h - 45), label)
+        draw_label(draw, (cx + 12, cy + cell_h - 45), label, y_offset=y_offset)
 
 
 def build_latent_panel(canvas, draw: ImageDraw.ImageDraw, box):
@@ -198,8 +198,8 @@ def build_latent_panel(canvas, draw: ImageDraw.ImageDraw, box):
     bot_box = (x + pad, y + h - 260, left_w, 212)
     paste_rounded(canvas, top, top_box, radius=16)
     paste_rounded(canvas, bottom, bot_box, radius=16)
-    draw_label(draw, (x + pad + 12, y + 58), "teacher rollout")
-    draw_label(draw, (x + pad + 12, y + h - 250), "depth rollout")
+    draw_label(draw, (x + pad + 12, y + 58), "teacher rollout", y_offset=3.5)
+    draw_label(draw, (x + pad + 12, y + h - 250), "depth rollout", y_offset=1.2)
 
     row_top = y + 154
     row_bot = y + h - 154
@@ -218,6 +218,7 @@ def build_latent_panel(canvas, draw: ImageDraw.ImageDraw, box):
         (91, 150, 222),
         fill=(235, 244, 255),
         fnt=F_BLOCK,
+        y_offset=0.04,
     )
     block(
         draw,
@@ -227,6 +228,7 @@ def build_latent_panel(canvas, draw: ImageDraw.ImageDraw, box):
         (220, 131, 39),
         fill=(255, 244, 232),
         fnt=F_BLOCK,
+        y_offset=0.04,
     )
 
     draw_network(canvas, mlp_x, row_bot - 52)
@@ -238,6 +240,7 @@ def build_latent_panel(canvas, draw: ImageDraw.ImageDraw, box):
         (116, 82, 190),
         fill=(244, 239, 255),
         fnt=F_BLOCK,
+        y_offset=0.06,
     )
     block(
         draw,
@@ -247,6 +250,7 @@ def build_latent_panel(canvas, draw: ImageDraw.ImageDraw, box):
         (220, 131, 39),
         fill=(255, 244, 232),
         fnt=F_BLOCK,
+        y_offset=0.04,
     )
 
     # Clean horizontal arrows between components.
@@ -270,8 +274,8 @@ def build_latent_panel(canvas, draw: ImageDraw.ImageDraw, box):
     )
     draw_text_center(
         draw,
-        latent_x - 96,
-        (row_top + row_bot) / 2,
+        latent_x - 70,
+        (row_top + row_bot) / 2 - 15,
         "recovered\nenv latent",
         F_PATH,
         fill=(80, 49, 150),
@@ -285,8 +289,8 @@ def build_latent_panel(canvas, draw: ImageDraw.ImageDraw, box):
     )
     draw_text_center(
         draw,
-        action_x - 98,
-        (row_top + row_bot) / 2,
+        action_x - 75,
+        (row_top + row_bot) / 2 - 15,
         "action\nsupervision",
         F_PATH,
         fill=(108, 62, 16),
