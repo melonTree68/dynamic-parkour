@@ -2,7 +2,6 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageOps
 
-
 HERE = Path(__file__).resolve().parent
 FRAMES = HERE / "training_pipeline_frames"
 ASSETS = HERE / "training_pipeline_assets"
@@ -46,7 +45,9 @@ def crop_sim_frame(path):
 
 
 def fit_cover(img, size):
-    return ImageOps.fit(img, size, method=Image.Resampling.BICUBIC, centering=(0.5, 0.62))
+    return ImageOps.fit(
+        img, size, method=Image.Resampling.BICUBIC, centering=(0.5, 0.62)
+    )
 
 
 def prepare_frame(img):
@@ -54,7 +55,7 @@ def prepare_frame(img):
     return img.filter(ImageFilter.UnsharpMask(radius=1.2, percent=150, threshold=3))
 
 
-def rounded_panel(draw, box, outline):
+def rounded_panel(draw: ImageDraw.ImageDraw, box, outline):
     x, y, w, h = box
     draw.rounded_rectangle(
         [x, y, x + w, y + h],
@@ -86,14 +87,16 @@ def paste_contain(canvas, img, box):
     canvas.paste(src, (px, py), src)
 
 
-def draw_text_center(draw, x, y, text, fnt, fill=(25, 28, 33)):
+def draw_text_center(draw: ImageDraw.ImageDraw, x, y, text, fnt, fill=(25, 28, 33)):
     bbox = draw.multiline_textbbox((0, 0), text, font=fnt, spacing=5, align="center")
     w = bbox[2] - bbox[0]
     h = bbox[3] - bbox[1]
-    draw.multiline_text((x - w / 2, y - h / 2), text, font=fnt, fill=fill, spacing=5, align="center")
+    draw.multiline_text(
+        (x - w / 2, y - h / 2), text, font=fnt, fill=fill, spacing=5, align="center"
+    )
 
 
-def draw_label(draw, xy, text, fill=(255, 255, 255), bg=LABEL_BG):
+def draw_label(draw: ImageDraw.ImageDraw, xy, text, fill=(255, 255, 255), bg=LABEL_BG):
     x, y = xy
     bbox = draw.textbbox((0, 0), text, font=F_SMALL)
     w = bbox[2] - bbox[0]
@@ -107,7 +110,7 @@ def draw_label(draw, xy, text, fill=(255, 255, 255), bg=LABEL_BG):
     draw.text((x + pad_x, y + pad_y), text, font=F_SMALL, fill=fill)
 
 
-def arrow(draw, start, end, color=(35, 94, 184), width=7):
+def arrow(draw: ImageDraw.ImageDraw, start, end, color=(35, 94, 184), width=7):
     sx, sy = start
     ex, ey = end
     dx, dy = ex - sx, ey - sy
@@ -125,7 +128,7 @@ def arrow(draw, start, end, color=(35, 94, 184), width=7):
     draw.polygon(pts, fill=color)
 
 
-def thin_arrow(draw, start, end, color=(65, 82, 105), width=4):
+def thin_arrow(draw: ImageDraw.ImageDraw, start, end, color=(65, 82, 105), width=4):
     sx, sy = start
     ex, ey = end
     dx, dy = ex - sx, ey - sy
@@ -145,10 +148,12 @@ def thin_arrow(draw, start, end, color=(65, 82, 105), width=4):
     )
 
 
-def block(draw, xy, wh, text, outline, fill=(255, 255, 255), fnt=F_SMALL):
+def block(draw: ImageDraw.ImageDraw, xy, wh, text, outline, fill=(255, 255, 255), fnt=F_SMALL):
     x, y = xy
     w, h = wh
-    draw.rounded_rectangle([x, y, x + w, y + h], radius=14, fill=fill, outline=outline, width=3)
+    draw.rounded_rectangle(
+        [x, y, x + w, y + h], radius=14, fill=fill, outline=outline, width=3
+    )
     draw_text_center(draw, x + w / 2, y + h / 2, text, fnt, fill=(20, 24, 30))
 
 
@@ -157,7 +162,7 @@ def draw_network(canvas, x, y):
     paste_contain(canvas, block_img, (x, y, 104, 104))
 
 
-def build_dynamic_panel(canvas, draw, box):
+def build_dynamic_panel(canvas, draw: ImageDraw.ImageDraw, box):
     x, y, w, h = box
     pad = 18
     gutter = 12
@@ -174,11 +179,16 @@ def build_dynamic_panel(canvas, draw, box):
         cy = y + pad + (idx // 2) * (cell_h + gutter)
         frame = crop_sim_frame(FRAMES / name)
         paste_rounded(canvas, frame, (cx, cy, cell_w, cell_h), radius=16)
-        draw.rounded_rectangle([cx, cy, cx + cell_w, cy + cell_h], radius=16, outline=(230, 235, 240), width=2)
+        draw.rounded_rectangle(
+            [cx, cy, cx + cell_w, cy + cell_h],
+            radius=16,
+            outline=(230, 235, 240),
+            width=2,
+        )
         draw_label(draw, (cx + 12, cy + cell_h - 45), label)
 
 
-def build_latent_panel(canvas, draw, box):
+def build_latent_panel(canvas, draw: ImageDraw.ImageDraw, box):
     x, y, w, h = box
     pad = 24
     left_w = 250
@@ -200,12 +210,44 @@ def build_latent_panel(canvas, draw, box):
     env_w, env_h = 205, 126
 
     draw_network(canvas, mlp_x, row_top - 52)
-    block(draw, (roa_x, row_top - roa_h / 2), (roa_w, roa_h), "ROA\nhistory", (91, 150, 222), fill=(235, 244, 255), fnt=F_BLOCK)
-    block(draw, (policy_x, row_top - policy_h / 2), (policy_w, policy_h), "teacher\npolicy", (220, 131, 39), fill=(255, 244, 232), fnt=F_BLOCK)
+    block(
+        draw,
+        (roa_x, row_top - roa_h / 2),
+        (roa_w, roa_h),
+        "ROA\nhistory",
+        (91, 150, 222),
+        fill=(235, 244, 255),
+        fnt=F_BLOCK,
+    )
+    block(
+        draw,
+        (policy_x, row_top - policy_h / 2),
+        (policy_w, policy_h),
+        "teacher\npolicy",
+        (220, 131, 39),
+        fill=(255, 244, 232),
+        fnt=F_BLOCK,
+    )
 
     draw_network(canvas, mlp_x, row_bot - 52)
-    block(draw, (roa_x - 6, row_bot - env_h / 2), (env_w, env_h), "teacher-\nstudent\nenv latent", (116, 82, 190), fill=(244, 239, 255), fnt=F_BLOCK)
-    block(draw, (policy_x, row_bot - policy_h / 2), (policy_w, policy_h), "student\npolicy", (220, 131, 39), fill=(255, 244, 232), fnt=F_BLOCK)
+    block(
+        draw,
+        (roa_x - 6, row_bot - env_h / 2),
+        (env_w, env_h),
+        "teacher-\nstudent\nenv latent",
+        (116, 82, 190),
+        fill=(244, 239, 255),
+        fnt=F_BLOCK,
+    )
+    block(
+        draw,
+        (policy_x, row_bot - policy_h / 2),
+        (policy_w, policy_h),
+        "student\npolicy",
+        (220, 131, 39),
+        fill=(255, 244, 232),
+        fnt=F_BLOCK,
+    )
 
     # Clean horizontal arrows between components.
     frame_right = x + pad + left_w
@@ -219,10 +261,36 @@ def build_latent_panel(canvas, draw, box):
     # Vertical supervision paths; labels are placed consistently to the left.
     latent_x = roa_x + roa_w / 2
     action_x = policy_x + policy_w / 2
-    arrow(draw, (latent_x, row_top + roa_h / 2 + 26), (latent_x, row_bot - env_h / 2 - 16), color=(116, 82, 190), width=6)
-    draw_text_center(draw, latent_x - 96, (row_top + row_bot) / 2, "recovered\nenv latent", F_PATH, fill=(80, 49, 150))
-    arrow(draw, (action_x, row_top + policy_h / 2 + 26), (action_x, row_bot - policy_h / 2 - 16), color=(220, 131, 39), width=6)
-    draw_text_center(draw, action_x - 98, (row_top + row_bot) / 2, "action\nsupervision", F_PATH, fill=(108, 62, 16))
+    arrow(
+        draw,
+        (latent_x, row_top + roa_h / 2 + 26),
+        (latent_x, row_bot - env_h / 2 - 16),
+        color=(116, 82, 190),
+        width=6,
+    )
+    draw_text_center(
+        draw,
+        latent_x - 96,
+        (row_top + row_bot) / 2,
+        "recovered\nenv latent",
+        F_PATH,
+        fill=(80, 49, 150),
+    )
+    arrow(
+        draw,
+        (action_x, row_top + policy_h / 2 + 26),
+        (action_x, row_bot - policy_h / 2 - 16),
+        color=(220, 131, 39),
+        width=6,
+    )
+    draw_text_center(
+        draw,
+        action_x - 98,
+        (row_top + row_bot) / 2,
+        "action\nsupervision",
+        F_PATH,
+        fill=(108, 62, 16),
+    )
 
 
 def main():
@@ -251,10 +319,36 @@ def main():
     build_latent_panel(canvas, draw, panels[2])
 
     # Arrows live in the whitespace between rounded frames.
-    arrow(draw, (690, PANEL_Y + PANEL_H / 2), (830, PANEL_Y + PANEL_H / 2), color=(45, 96, 180), width=8)
-    draw_text_center(draw, 760, PANEL_Y + PANEL_H / 2 - 58, "DAgger\nimitation", F_ARROW, fill=(45, 96, 180))
-    arrow(draw, (1500, PANEL_Y + PANEL_H / 2), (1610, PANEL_Y + PANEL_H / 2), color=(37, 138, 71), width=8)
-    draw_text_center(draw, 1555, PANEL_Y + PANEL_H / 2 - 58, "Camera\ndistillation", F_ARROW, fill=(37, 138, 71))
+    arrow(
+        draw,
+        (690, PANEL_Y + PANEL_H / 2),
+        (830, PANEL_Y + PANEL_H / 2),
+        color=(45, 96, 180),
+        width=8,
+    )
+    draw_text_center(
+        draw,
+        760,
+        PANEL_Y + PANEL_H / 2 - 58,
+        "DAgger\nimitation",
+        F_ARROW,
+        fill=(45, 96, 180),
+    )
+    arrow(
+        draw,
+        (1500, PANEL_Y + PANEL_H / 2),
+        (1610, PANEL_Y + PANEL_H / 2),
+        color=(37, 138, 71),
+        width=8,
+    )
+    draw_text_center(
+        draw,
+        1555,
+        PANEL_Y + PANEL_H / 2 - 58,
+        "Camera\ndistillation",
+        F_ARROW,
+        fill=(37, 138, 71),
+    )
 
     canvas.convert("RGB").save(OUT, quality=96)
 
