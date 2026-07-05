@@ -1,4 +1,0 @@
-interface:
-  display_name: "Imitation Pretraining"
-  short_description: "Run and tune DAgger pretraining for a1_dynamic."
-  default_prompt: "Use $imitation-pretraining to run or modify static-expert DAgger pretraining for a1_dynamic."

@@ -1,4 +1,0 @@
-interface:
-  display_name: "A1 Mixed Terrain"
-  short_description: "Design and maintain a1_mixed terrain tasks."
-  default_prompt: "Use $a1-mixed-terrain to explain or modify the a1_mixed mixed static/dynamic terrain task."

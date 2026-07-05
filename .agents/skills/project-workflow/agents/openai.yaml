@@ -1,4 +1,0 @@
-interface:
-  display_name: "Project Workflow"
-  short_description: "Work safely in extreme-parkour."
-  default_prompt: "Use $project-workflow before running commands or making changes in extreme-parkour."
