@@ -18,12 +18,12 @@ WINDOW = 5
 MAX_CHECKPOINT = 21000
 
 RUNS = {
-    "original static distill": {
+    "baseline static": {
         "distill": "legged_gym/logs/original-pipeline-static-terrain/distill-from-15k/metrics.csv",
         "base": "legged_gym/logs/original-pipeline-static-terrain/base/metrics.csv",
         "color": "#1f77b4",
     },
-    "original dynamic distill": {
+    "baseline dynamic": {
         "distill": "legged_gym/logs/original-pipeline-dynamic-terrain/distill-from-15k-v2-16f4736/metrics.csv",
         "base": "legged_gym/logs/original-pipeline-dynamic-terrain/base-v2-16f4736/metrics.csv",
         "color": "#666666",

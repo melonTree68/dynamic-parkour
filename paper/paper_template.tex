@@ -169,7 +169,7 @@ Figure~\ref{fig:baseline_curves} shows that the original pipeline does not trans
 	\includegraphics[width=0.48\textwidth]{static_dynamic_waypoints.pdf}
 	\hfill
 	\includegraphics[width=0.48\textwidth]{distillation_waypoints.pdf}
-	\caption{Original pipeline degradation from static to dynamic terrain. Left: base-RL training curves. Right: camera distillation curves, with dashed lines showing base-RL references.}
+	\caption{Baseline pipeline degradation from static to dynamic terrain. Left: base-RL training curves. Right: camera distillation curves, with dashed lines showing base-RL references.}
 	\label{fig:baseline_curves}
 \end{figure*}
 
@@ -197,12 +197,12 @@ Environment latent recovery was evaluated by obstacle family. Figure~\ref{fig:re
 \end{figure*}
 
 \subsection{Depth Encoder Loss}
-The depth encoder scan-latent loss was tested on the final hybrid mixed-terrain setting. Figure~\ref{fig:depth_loss} compares distillation with and without this loss. The added supervision reaches a strong best checkpoint, but it does not clearly improve the final outcome over the same hybrid run without the extra loss. The likely reason is that action imitation and dynamic-state supervision already provide strong gradients for the depth pathway, while scan-latent matching may over-constrain an intermediate representation that only needs to be behaviorally useful.
+The depth encoder scan-latent loss was tested on top of HELA. Figure~\ref{fig:depth_loss} compares distillation with and without this loss. The added supervision reaches a strong best checkpoint, but it does not clearly improve the final outcome over the same hybrid run without the extra loss. The likely reason is that action imitation and dynamic-state supervision already provide strong gradients for the depth pathway, while scan-latent matching may over-constrain an intermediate representation that only needs to be behaviorally useful.
 
 \begin{figure}[htbp]
 	\centering
 	\includegraphics[width=\linewidth]{depth_loss_distill_comparison.pdf}
-	\caption{Hybrid mixed-terrain camera distillation with and without the depth encoder scan-latent loss. The dashed line marks the shared base-RL reference.}
+	\caption{HELA camera distillation with and without the depth encoder scan-latent loss. The dashed line marks the shared base-RL reference.}
 	\label{fig:depth_loss}
 \end{figure}
 

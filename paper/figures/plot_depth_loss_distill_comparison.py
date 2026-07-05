@@ -18,12 +18,12 @@ WINDOW = 5
 MAX_CHECKPOINT = 20000
 
 RUNS = {
-    "hybrid": {
+    "HELA w/o depth enc. loss": {
         "distill": "legged_gym/logs/augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k/metrics.csv",
         "base": "legged_gym/logs/augment-latent-hybrid-mixed-terrain/resume-from-imitate-base-15k-100/metrics.csv",
         "color": "#d62728",
     },
-    "hybrid + depth encoder loss": {
+    "HELA w/ depth enc. loss": {
         "distill": "legged_gym/logs/augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k-depth-enc-loss/metrics.csv",
         "base": "legged_gym/logs/augment-latent-hybrid-mixed-terrain/resume-from-imitate-base-15k-100/metrics.csv",
         "color": "#17becf",

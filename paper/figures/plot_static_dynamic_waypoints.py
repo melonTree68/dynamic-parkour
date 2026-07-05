@@ -10,11 +10,11 @@ WINDOW = 5
 MAX_CHECKPOINT = 50000
 
 RUNS = {
-    "original static": {
+    "baseline static": {
         "path": "legged_gym/logs/original-pipeline-static-terrain/base/metrics.csv",
         "color": "#1f77b4",
     },
-    "original dynamic": {
+    "baseline dynamic": {
         "path": "legged_gym/logs/original-pipeline-dynamic-terrain/base-v2-16f4736/metrics.csv",
         "color": "#666666",
     },
@@ -36,5 +36,5 @@ for label, spec in RUNS.items():
 plt.xlabel("training iteration")
 plt.ylabel("mean waypoints")
 plt.ylim(0.0, 1.05)
-plt.legend(ncol=2, loc="lower right")
+plt.legend(loc="lower right")
 save_pdf(OUT)

@@ -17,7 +17,7 @@ BASE_MAX_CHECKPOINT = 20000
 DISTILL_MAX_CHECKPOINT = 15000
 
 RUNS = {
-    "no aug": {
+    "no ELA": {
         "base": "legged_gym/logs/imitation-pretrain-dynamic-terrain/resume-from-imitate-base-15k-100-v2-91bf8ce/metrics.csv",
         "distill": "legged_gym/logs/imitation-pretrain-dynamic-terrain/distill-from-resume-from-imitate-base-15k-100-15k-v2-91bf8ce/metrics.csv",
         "color": "#2ca02c",
@@ -32,7 +32,7 @@ RUNS = {
         "distill": "legged_gym/logs/augment-latent-ts-dynamic-terrain/distill-from-resume-from-imitate-base-15k-100-20k/metrics.csv",
         "color": "#9467bd",
     },
-    "hybrid": {
+    "HELA": {
         "base": "legged_gym/logs/augment-latent-hybrid-mixed-terrain/resume-from-imitate-base-15k-100/metrics.csv",
         "distill": "legged_gym/logs/augment-latent-hybrid-mixed-terrain/distill-from-resume-from-imitate-base-15k-100-20k/metrics.csv",
         "color": "#d62728",
