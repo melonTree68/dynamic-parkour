@@ -35,7 +35,7 @@ Legged parkour requires a controller to couple perception, contact timing, and a
 
 Dynamic obstacles change the problem. A hurdle can translate into the robot body after takeoff, a gap platform can move before landing, a tilted pad can rotate under the feet, and a step can change height during approach. The policy must therefore reason not only about local shape but also about time-varying obstacle state. This project asks a focused question: can the original privileged-to-depth training pipeline be extended to dynamic-obstacle parkour without replacing the underlying A1 parkour control stack?
 
-Our answer is yes, but with important qualifications. The original pipeline degrades sharply when static terrain is replaced by dynamic obstacles. Static-expert imitation pretraining gives a strong initialization for dynamic base reinforcement learning. Dynamic environment latent augmentation then provides an explicit way to test whether obstacle state should be recovered from proprioceptive history, depth observations, or suppressed for particular terrain families. The best-performing final system is not a single uniform recovery mechanism. It is a hybrid mixed-terrain design: gap state is recovered visually during teacher-student distillation, while hurdle and tilted-pad dynamic state are suppressed because explicit recovery did not improve those families.
+Our answer is yes, but with important qualifications. The original pipeline degrades sharply when static terrain is replaced by dynamic obstacles. Static-expert imitation pretraining gives a strong initialization for dynamic base reinforcement learning. Dynamic environment latent augmentation then provides an explicit way to test whether obstacle state should be recovered from proprioceptive history, depth observations, or suppressed for particular terrain families. The best-performing final system uses a hybrid mixed-terrain design: gap state is recovered visually during teacher-student distillation, while hurdle and tilted-pad dynamic state are suppressed because explicit recovery did not improve those families.
 
 The project contributions are:
 \begin{itemize}
@@ -118,7 +118,7 @@ Training dynamic parkour from scratch is difficult because early failures preven
 The imitation objective trains both the privileged actor path and the history-encoding actor path. It also trains the estimator used by the original pipeline, so the resulting checkpoint can be consumed by the normal base-RL runner. When dynamic environment latent augmentation is enabled, imitation also supervises the masked dynamic-state recovery losses for families assigned to ROA-style recovery.
 
 \subsection{Dynamic Environment Latent Augmentation}
-The core augmentation is a low-dimensional dynamic obstacle state appended after the original privileged latent slice. For \texttt{a1\_dynamic}, this vector has 30 dimensions: two upcoming obstacle groups, each represented by 15 features. Static \texttt{a1} keeps this dimension at zero.
+We augment the environment latent with a low-dimensional dynamic obstacle state appended after the original privileged latent slice. For \texttt{a1\_dynamic}, this vector has 30 dimensions: two upcoming obstacle groups, each represented by 15 features. Static \texttt{a1} keeps this dimension at zero.
 
 Each group contains validity and type bits, relative geometry, motion state, and motion parameters. Table~\ref{tab:dynamic_latent_features} summarizes the per-group feature layout.
 \begin{table*}[htb]
@@ -157,12 +157,12 @@ The loss was intended to stabilize the depth latent that replaces privileged sca
 
 \section{Experiments}
 \subsection{Setup and Metrics}
-All experiments use the A1 parkour simulator in Isaac Gym. We compare the original static pipeline, the original pipeline applied directly to dynamic terrain, imitation-pretrained dynamic training, environment-latent recovery variants, hybrid mixed terrain, and hybrid mixed terrain with depth encoder loss.
+We compare the baseline pipeline on static terrain, the baseline pipeline applied directly to dynamic terrain, imitation-pretrained dynamic training, environment latent augmentation (ELA) with different recovery modes, ELA with hybrid recovery mode (HELA) on mixed terrain, and HELA with depth encoder loss.
 
-The primary metric is mean waypoints reached during evaluation. It measures progress through the eight-goal course and is more interpretable than reward alone for parkour. We also report mean reward because it reflects PPO's training proxy and helps identify cases where a run collects dense shaping reward without making comparable course progress. For training curves, smoothed waypoint curves are plotted from evaluation CSV files. Dashed horizontal lines in distillation plots mark corresponding base-RL reference performance.
+The primary metric is mean waypoints, defined as the proportion of waypoints (goals) reached during evaluation. It measures progress through the eight-goal course and is more interpretable than reward alone for parkour. We also report mean reward as it helps identify cases where a run collects auxiliary reward (e.g., heading alignment, upright posture, and collision avoidance) without making comparable parkour progress.
 
 \subsection{Original Pipeline Degradation}
-The first question is whether the original pipeline transfers from static to dynamic terrain. Figure~\ref{fig:baseline_curves} shows that it does not. The static base run reaches nearly one waypoint, while the dynamic base run remains far lower even after a longer run. Camera distillation preserves the same gap: static distillation remains strong, but dynamic distillation remains weak.
+Figure~\ref{fig:baseline_curves} shows that the original pipeline does not transfer directly from static to dynamic terrain. The static base run reaches nearly 1.0 waypoint, while the dynamic base run remains far lower even after longer training. Camera distillation preserves the same gap: static distillation remains strong, and dynamic distillation remains weak.
 
 \begin{figure*}[htbp]
 	\centering
@@ -173,19 +173,21 @@ The first question is whether the original pipeline transfers from static to dyn
 	\label{fig:baseline_curves}
 \end{figure*}
 
-The observed failure modes are family-specific. Hurdles destabilize the body when they move during contact. Gaps require takeoff and landing to be timed against moving support surfaces. Tilted pads can be crossed by aiming near the rotation axis, reducing the value of explicit roll prediction. Dynamic steps were the hardest family: actor contacts often pushed the robot backward before it collected useful progress reward.
+Common failure modes are family-specific. Hurdles destabilize the body when they move during contact. Gaps require takeoff and landing to be timed against moving support surfaces. For dynamic steps, the robot receives little reward and does not learn the emergent behavior of placing the front legs on the step.
 
-\subsection{Imitation and Latent Recovery}
-DAgger-style pretraining improved dynamic learning by placing the policy near a useful static-parkour behavior before reinforcement learning. The imitation losses converged rapidly in the pretraining stage, and the resumed dynamic base policy reached much higher waypoint values than the original dynamic baseline.
+\subsection{Imitation Pretraining}
+DAgger-style pretraining improved dynamic learning by placing the policy near a useful static-parkour behavior before dynamic training. The fine-tuned base policy after imitation pretraining reached much higher mean waypoints than the dynamic baseline.
 
-\begin{figure}[htbp]
-	\centering
-	\includegraphics[width=\linewidth]{imitation_losses.pdf}
-	\caption{Imitation pretraining losses. The student learns privileged action imitation, history-branch action imitation, and estimator targets before dynamic base-RL fine-tuning.}
-	\label{fig:imitation_losses}
-\end{figure}
+% \begin{figure}[htbp]
+% 	\centering
+% 	\includegraphics[width=\linewidth]{imitation_losses.pdf}
+% 	\caption{Imitation pretraining losses. The student learns privileged action imitation, history-branch action imitation, and estimator targets before dynamic base-RL fine-tuning.}
+% 	\label{fig:imitation_losses}
+% \end{figure}
 
-Environment latent recovery was then evaluated by obstacle family. Figure~\ref{fig:recovery_modes} compares no dynamic latent augmentation, pure ROA-style recovery, pure teacher-student recovery, and the final hybrid mixed-terrain recovery. The result is not uniform. Gap traversal benefits most from the teacher-student path, consistent with the need to observe moving support surfaces before contact. Hurdle and tilted-pad explicit recovery is weaker or harmful, motivating the mixed-terrain suppression design.
+\subsection{ELA, Latent Recovery, and HELA}
+
+Environment latent recovery was evaluated by obstacle family. Figure~\ref{fig:recovery_modes} compares no ELA, pure ROA-style recovery, pure teacher-student recovery, and hybrid recovery (HELA). The result is not uniform across obstacle families. Gap traversal benefits most from the teacher-student path, consistent with the need to observe moving support surfaces before contact. Explicit recovery is harmful for hurdles and tilted pads, motivating the latent suppression design in \texttt{a1\_mixed} terrain.
 
 \begin{figure*}[htbp]
 	\centering
@@ -200,7 +202,7 @@ The depth encoder scan-latent loss was tested on the final hybrid mixed-terrain 
 \begin{figure}[htbp]
 	\centering
 	\includegraphics[width=\linewidth]{depth_loss_distill_comparison.pdf}
-	\caption{Hybrid mixed-terrain camera distillation with and without the depth encoder scan-latent loss. Dashed lines mark the shared base-RL reference.}
+	\caption{Hybrid mixed-terrain camera distillation with and without the depth encoder scan-latent loss. The dashed line marks the shared base-RL reference.}
 	\label{fig:depth_loss}
 \end{figure}
 
@@ -209,17 +211,19 @@ Table~\ref{tab:final_results} summarizes the best checkpoints in the available e
 
 \begin{table}[htb]
 	\centering
-	\caption{Best deployment-stage results from available evaluation CSV files. When a CSV contains per-family rows, values are first averaged by checkpoint.}
+	\caption{Deployment-stage comparison of all pipelines. HELA recovers much of the baseline's degradation, while the added depth encoder loss does not improve upon HELA.}
 	\label{tab:final_results}
-	\begin{tabular}{llccc}
+	\begin{tabular}{llcc}
 		\toprule
-		Pipeline & Terrain & Ckpt. & Waypoints & Reward \\
+		Pipeline & Terrain & Waypoints & Reward \\
 		\midrule
-		Original & Static & 10000 & 0.936 & 18.26 \\
-		Original & Dynamic & 20500 & 0.230 & 8.85 \\
-		Imitation only & Dynamic & 9500 & 0.538 & 17.93 \\
-		Hybrid latent & Mixed & 19500 & 0.808 & 16.69 \\
-		Hybrid + depth loss & Mixed & 15500 & 0.748 & 16.06 \\
+		Baseline & Static & \textbf{0.936} & 18.26 \\
+		Baseline & Dynamic & \textbf{0.230} & 8.85 \\
+		Imitation only & Dynamic & 0.538 & 17.93 \\
+		ELA + ROA & Dynamic & 0.497 & 15.50 \\
+		ELA + teacher-student & Dynamic & 0.510 & 16.64 \\
+		HELA & Mixed & \textbf{0.808} & 16.69 \\
+		HELA w/ depth enc. loss & Mixed & 0.748 & 16.06 \\
 		\bottomrule
 	\end{tabular}
 \end{table}
