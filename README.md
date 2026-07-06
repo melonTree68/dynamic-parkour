@@ -1,90 +1,101 @@
-# Extreme Parkour with Legged Robots #
-<p align="center">
-<img src="./images/teaser.jpeg" width="80%"/>
-</p>
+# Dynamic-Obstacle Parkour with Quadruped Robots
 
-**Authors**: [Xuxin Cheng*](https://chengxuxin.github.io/), [Kexin Shi*](https://tenhearts.github.io/), [Ananye Agarwal](https://anag.me/), [Deepak Pathak](https://www.cs.cmu.edu/~dpathak/)  
-**Website**: https://extreme-parkour.github.io  
-**Paper**: https://arxiv.org/abs/2309.14341  
-**Tweet Summary**: https://twitter.com/pathak2206/status/1706696237703901439
+## Setup
 
-### Installation ###
 ```bash
 conda create -n parkour python=3.8
 conda activate parkour
-cd
 pip3 install torch==1.10.0+cu113 torchvision==0.11.1+cu113 torchaudio==0.10.0+cu113 -f https://download.pytorch.org/whl/cu113/torch_stable.html
-git clone git@github.com:chengxuxin/extreme-parkour.git
-cd extreme-parkour
-# Download the Isaac Gym binaries from https://developer.nvidia.com/isaac-gym 
-# Originally trained with Preview3, but haven't seen bugs using Preview4.
-cd isaacgym/python && pip install -e .
-cd ~/extreme-parkour/rsl_rl && pip install -e .
-cd ~/extreme-parkour/legged_gym && pip install -e .
+# Download Isaac Gym from https://developer.nvidia.com/isaac-gym
+cd /path/to/isaacgym/python && pip install -e .
+cd /path/to/this/repo/rsl_rl && pip install -e .
+cd /path/to/this/repo/legged_gym && pip install -e .
 pip install "numpy<1.24" pydelatin wandb tqdm opencv-python ipdb pyfqmr flask
 ```
 
-### Usage ###
-`cd legged_gym/scripts`
-1. Train base policy:  
+You may need to set the environment variable `LD_LIBRARY_PATH` to `/path/to/parkour/conda/env/lib`.
+
+## Usage
+
+Run the following commands from `legged_gym/legged_gym/scripts`.
+
+### Common arguments
+
+See `legged_gym/legged_gym/utils/helpers.py` for the full list of arguments.
+
+- `--headless`: enable this on headless machines; do not train camera distillation on headless machines
+- `--no_wandb`: disable wandb
+- `--device`: device, e.g., `cpu`, `cuda:0`
+- `--delay`: add delay
+- `--use_camera`: use camera depth input; does not support headless machines
+- `--task`: parkour task; only support `a1`, `a1_dynamic` (default), and `a1_mixed`
+- `--proj_name` and `--exptid`: checkpoints are saved under `legged_gym/logs/<proj_name>/<exptid>`
+- `--resume`, `--resumeid`, and `--checkpoint`: resume training from checkpoint `legged_gym/logs/<proj_name>/<resumeid>/<checkpoint>.pt`; use the latest checkpoint if `--checkpoint` is not provided
+
+Set dynamic environment latent recovery mode on line 9-14 of `legged_gym/legged_gym/envs/a1/a1_dynamic_config.py`.
+
+### Imitation pretraining
+
 ```bash
-python train.py --exptid xxx-xx-WHATEVER --device cuda:0
+python pretrain_imitation.py --task <task> \
+  --expert_proj_name <expert-proj-name> \
+  --expert_exptid <expert-exptid> \
+  --expert_checkpoint <expert-ckpt> \
+  --proj_name <proj-name> --exptid <imitation-exptid>
 ```
-Train 10-15k iterations (8-10 hours on 3090) (at least 15k recommended).
 
-2. Train distillation policy:
+Expert policy will be loaded from `legged_gym/logs/<expert-proj-name>/<expert-exptid>/<expert-ckpt>.pt`
+
+### Base RL training
+
 ```bash
-python train.py --exptid yyy-yy-WHATEVER --device cuda:0 --resume --resumeid xxx-xx --delay --use_camera
+# Train base RL from scratch
+python train.py --task <task> --proj_name <proj-name> --exptid <base-exptid>
+# Fine-tune an imitation-pretrained policy
+python train.py --task <task> \
+  --resume --resumeid <imitation-exptid> --checkpoint <imitation-ckpt> \
+  --proj_name <proj-name> --exptid <base-exptid>
 ```
-Train 5-10k iterations (5-10 hours on 3090) (at least 5k recommended). 
->You can run either base or distillation policy at arbitary gpu # as long as you set `--device cuda:#`, no need to set `CUDA_VISIBLE_DEVICES`.
 
-3. Play base policy:
+### Camera distillation
+
 ```bash
-python play.py --exptid xxx-xx
+python train.py --delay --use_camera --task <task> \
+  --resume --resumeid <base-exptid> --checkpoint <base-ckpt> \
+  --proj_name <proj-name> --exptid <distill-exptid>
 ```
-No need to write the full exptid. The parser will auto match runs with first 6 strings (xxx-xx). So better make sure you don't reuse xxx-xx. Delay is added after 8k iters. If you want to play after 8k, add `--delay`
 
-4. Play distillation policy:
+Add `--train_depth_encoder_loss` to enable depth encoder scan-latent loss.
+
+### Evaluation
+
 ```bash
-python play.py --exptid yyy-yy --delay --use_camera
+# Evaluate base policy
+python evaluate.py --delay --task <task> \
+  --proj_name <proj-name> --exptid <base-exptid> --checkpoint <ckpt>
+# Evaluate distillation policy
+python evaluate.py --delay --use_camera --task <task> \
+  --proj_name <proj-name> --exptid <distill-exptid> --checkpoint <ckpt>
 ```
 
-5. Save models for deployment:
+Use `--eval_terrain` to evaluate the policy only on specific terrains. If not provided, the task's default terrain split is used.
+
+### Play
+
 ```bash
-python save_jit.py --exptid xxx-xx
+# Play base policy
+python play.py --delay --record_video --task <task> \
+  --proj_name <proj-name> --exptid <base-exptid> --checkpoint <ckpt>
+# Play distillation policy
+python play.py --delay --use_camera --record_video --task <task> \
+  --proj_name <proj-name> --exptid <distill-exptid> --checkpoint <ckpt>
 ```
-This will save the models in `legged_gym/logs/parkour_new/xxx-xx/traced/`.
 
-### Viewer Usage
-Can be used in both IsaacGym and web viewer.
-- `ALT + Mouse Left + Drag Mouse`: move view.
-- `[ ]`: switch to next/prev robot.
-- `Space`: pause/unpause.
-- `F`: switch between free camera and following camera.
+Videos are saved under `videos/<proj-name>/<exptid>/<timestamp>`.
 
-### Arguments
-- --exptid: string, can be `xxx-xx-WHATEVER`, `xxx-xx` is typically numbers only. `WHATEVER` is the description of the run. 
-- --device: can be `cuda:0`, `cpu`, etc.
-- --delay: whether add delay or not.
-- --checkpoint: the specific checkpoint you want to load. If not specified load the latest one.
-- --resume: resume from another checkpoint, used together with `--resumeid`.
-- --seed: random seed.
-- --no_wandb: no wandb logging.
-- --use_camera: use camera or scandots.
-- --web: used for playing on headless machines. It will forward a port with vscode and you can visualize seemlessly in vscode with your idle gpu or cpu. [Live Preview](https://marketplace.visualstudio.com/items?itemName=ms-vscode.live-server) vscode extension required, otherwise you can view it in any browser.
+Extra video recording arguments:
 
-### Acknowledgement
-https://github.com/leggedrobotics/legged_gym  
-https://github.com/Toni-SM/skrl
-
-### Citation
-If you found any part of this code useful, please consider citing:
-```
-@article{cheng2023parkour,
-title={Extreme Parkour with Legged Robots},
-author={Cheng, Xuxin and Shi, Kexin and Agarwal, Ananye and Pathak, Deepak},
-journal={arXiv preprint arXiv:2309.14341},
-year={2023}
-}
-```
+- `--video_width` and `--video_height`: video resolution
+- `--video_fps`: video frames per second
+- `--video_episodes`: number of episodes in each video
+- `--video_camera_mode`: recorded camera mode; only support `yaw` (roll/pitch fixed, yaw follows the robot) and `attached` (roll/pitch/yaw all follow the robot)
